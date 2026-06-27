@@ -15,6 +15,7 @@ from agente_navegador import browser as brw
 from agente_navegador.actions.company_profile import get_company_info, scrape_company_info
 from agente_navegador.logger import get_logger, log_agent, log_success
 from agente_navegador.supervisor import confirm_critical_action
+from agente_navegador.actions.gemini_responder import generate_smart_response
 
 log = get_logger(__name__)
 
@@ -339,36 +340,12 @@ async def run_auto_reply_loop(
                 
             log.info(f"Mensagem recebida de '{chat_title}': '{last_msg_text}'")
             
-            # 1. Verifica se eh uma pergunta sobre a empresa (raspa dados do balao.info)
-            company_answer = get_answer_from_company_profile(last_msg_text)
-            
-            if company_answer:
-                reply_text = company_answer
-            elif "supabase" in last_msg_text.lower():
+            # Verifica se e uma pergunta do Supabase ou consulta geral por IA
+            if "supabase" in last_msg_text.lower():
                 await consult_supabase_source(page)
                 reply_text = "Ola! Abri a consulta interna da nossa base de dados Supabase para verificar as informacoes do seu cadastro/pedido. Um momento, por favor!"
             else:
-                # 2. Verifica se eh uma duvida de produtos (vendas)
-                search_term = extract_search_term(last_msg_text)
-                
-                if search_term:
-                    products = await search_products_on_balao(page, search_term)
-                    if products:
-                        reply_text = (
-                            f"Ola! Sou o assistente virtual de vendas do Balão da Informática Castelo! 🚀\n\n"
-                            f"Encontrei estas ofertas incriveis de *{search_term}* no nosso site:\n\n"
-                        )
-                        for p in products:
-                            reply_text += f"📦 *{p['name']}*\n💰 Preço: {p['price']}\n🔗 Compra rápida: {p['link']}\n\n"
-                        reply_text += "Qual dessas opcoes voce gostaria de garantir? Podemos entregar hoje mesmo! 🛍"
-                    else:
-                        reply_text = (
-                            f"Ola! Sou o assistente de vendas do Balão da Informática Castelo! 🚀\n\n"
-                            f"Nao encontrei ofertas de *{search_term}* no site agora, mas temos muitos itens em estoque! "
-                            f"Visite nosso site completo: www.balao.info ou me diga qual outra peca voce procura!"
-                        )
-                else:
-                    reply_text = message_template
+                reply_text = await generate_smart_response(last_msg_text)
 
             # Envia resposta
             should_send = True

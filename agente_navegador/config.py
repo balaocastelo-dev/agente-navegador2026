@@ -6,6 +6,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from typing import Optional
+
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
@@ -40,6 +42,11 @@ class Config(BaseModel):
     # --- Segurança ---
     require_confirmation: bool = Field(
         default_factory=lambda: os.getenv("REQUIRE_CONFIRMATION", "true").lower() == "true"
+    )
+
+    # --- Gemini API ---
+    gemini_api_key: Optional[str] = Field(
+        default_factory=lambda: os.getenv("GEMINI_API_KEY")
     )
 
     # --- Empresa ---

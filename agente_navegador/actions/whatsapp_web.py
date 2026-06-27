@@ -361,10 +361,7 @@ async def run_auto_reply_loop(
                 await asyncio.sleep(0.5)
                 
                 log.info(f"Digitando resposta para {chat_title}...")
-                for char in reply_text:
-                    await input_field.press(char)
-                    await asyncio.sleep(random.uniform(0.02, 0.05))
-                    
+                await input_field.type(reply_text, delay=35)
                 await asyncio.sleep(0.5)
                 await page.keyboard.press("Enter")
                 log_success(f"Resposta enviada para '{chat_title}'!")

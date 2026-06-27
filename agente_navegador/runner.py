@@ -20,6 +20,10 @@ from agente_navegador.models import (
 )
 from agente_navegador.safety import check_step_safety, is_critical_action
 from agente_navegador.supervisor import confirm_critical_action, human_checkpoint
+from agente_navegador.actions.whatsapp_web import (
+    wait_for_whatsapp_web_login,
+    run_auto_reply_loop,
+)
 
 log = get_logger(__name__)
 
@@ -151,6 +155,24 @@ class PlanRunner:
                 if step.save_as:
                     self._save_collected(step.save_as, value)
                 log.info(f"Atributo coletado ({step.attribute}={value})")
+
+            elif action == ActionType.WHATSAPP_WEB_RESPONDER:
+                message_text = step.value or (step.extra or {}).get("message_text") or "Olá! Recebemos sua mensagem no Balão da Informática Castelo."
+                req_conf = (step.extra or {}).get("require_confirmation", True)
+                max_cycles = (step.extra or {}).get("max_cycles", 5)
+                delay_sec = (step.extra or {}).get("cycle_delay_sec", 5)
+
+                # Aguarda o login inicial
+                await wait_for_whatsapp_web_login()
+                # Executa o loop de verificação e resposta
+                replied_count = await run_auto_reply_loop(
+                    message_template=message_text,
+                    require_confirmation=req_conf,
+                    max_cycles=max_cycles,
+                    cycle_delay_sec=delay_sec,
+                )
+                if step.save_as:
+                    self._save_collected(step.save_as, str(replied_count))
 
             # Reset do flag de checkpoint após ação não-checkpoint
             self._previous_was_checkpoint = False

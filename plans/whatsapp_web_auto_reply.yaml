@@ -1,0 +1,17 @@
+name: whatsapp_web_auto_reply
+description: "Agente auto-responder para WhatsApp Web via QR Code (Balao da Informatica Castelo)"
+version: "1.0"
+steps:
+  - action: goto
+    url: https://web.whatsapp.com/
+  
+  - action: human_checkpoint
+    message: "Por favor, escaneie o QR Code se necessario e aguarde o carregamento total das conversas."
+
+  - action: whatsapp_web_responder
+    value: "Ola! Recebemos sua mensagem no Balao da Informatica Castelo. Em breve um de nossos atendentes entrara em contato com voce. (Auto-reply)"
+    save_as: total_respondidas
+    extra:
+      require_confirmation: true
+      max_cycles: 20
+      cycle_delay_sec: 5

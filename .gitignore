@@ -47,4 +47,6 @@ test-results/
 # ── Dados coletados / sensíveis ────────────────────────────────────────────
 # NÃO subir logs nem screenshots com dados reais (opcional — remova se quiser versionar)
 # logs/*.log
+logs/*.log
 # screenshots/*.png
+screenshots/*.png

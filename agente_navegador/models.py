@@ -21,6 +21,7 @@ class ActionType(str, Enum):
     HUMAN_CHECKPOINT = "human_checkpoint"
     COLLECT_INPUT_VALUE = "collect_input_value"
     COLLECT_ATTRIBUTE = "collect_attribute"
+    WHATSAPP_WEB_RESPONDER = "whatsapp_web_responder"
 
 
 class PlanStep(BaseModel):

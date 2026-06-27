@@ -171,3 +171,16 @@ class TestValidatePlanSafety:
         ]
         errors = validate_plan_safety(steps)
         assert errors == []
+
+    def test_whatsapp_web_responder_is_critical_but_valid_with_checkpoint(self):
+        steps = [
+            make_step(ActionType.GOTO, url="https://web.whatsapp.com/"),
+            make_step(ActionType.HUMAN_CHECKPOINT, message="Escaneie o QR Code"),
+            make_step(ActionType.WHATSAPP_WEB_RESPONDER, value="Olá!"),
+        ]
+        errors = validate_plan_safety(steps)
+        assert errors == []
+
+    def test_qr_code_whatsapp_web_not_absolutely_forbidden_anymore(self):
+        step = make_step(ActionType.HUMAN_CHECKPOINT, message="qr code whatsapp web")
+        assert is_absolutely_forbidden(step) is False

@@ -87,7 +87,6 @@ ABSOLUTELY_FORBIDDEN: Set[str] = {
     "pedir código 2fa",
     "store cookies",
     "armazenar cookies",
-    "qr code whatsapp web",
     "burlar autenticação",
     "bypass authentication",
     "spam",

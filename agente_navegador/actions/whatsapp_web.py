@@ -308,6 +308,46 @@ async def get_message_id(msg_locator) -> str | None:
         return None
 
 
+async def get_conversation_history(page) -> list[dict]:
+    """
+    Recupera o histórico recente das últimas 15 mensagens (remetente e texto) da conversa aberta.
+    Identifica o remetente usando o prefixo do data-id do WhatsApp Web:
+    - true_ -> Agente
+    - false_ -> Cliente
+    """
+    try:
+        history = await page.evaluate("""() => {
+            const rows = Array.from(document.querySelectorAll('div[data-id]'));
+            const results = [];
+            for (const row of rows) {
+                const dataId = row.getAttribute('data-id');
+                if (!dataId) continue;
+                
+                let sender = null;
+                if (dataId.startsWith('true_')) {
+                    sender = 'Agente';
+                } else if (dataId.startsWith('false_')) {
+                    sender = 'Cliente';
+                } else {
+                    continue;
+                }
+                
+                const textEl = row.querySelector('.selectable-text, span[data-testid="selectable-text"]');
+                if (textEl) {
+                    results.push({
+                        sender: sender,
+                        text: textEl.innerText.trim()
+                    });
+                }
+            }
+            return results.slice(-15);
+        }""")
+        return history
+    except Exception as e:
+        log.error(f"Erro ao recuperar historico de conversa: {e}")
+        return []
+
+
 async def run_auto_reply_loop(
     message_template: str,
     require_confirmation: bool = True,
@@ -391,12 +431,13 @@ async def run_auto_reply_loop(
                 if msg_id != last_processed_msg_id:
                     log.info(f"Nova mensagem em '{active_chat_title}': '{last_msg_text}' (ID: {msg_id})")
                     
-                    # Processa a resposta
+                    # Processa a resposta com contexto do histórico
                     if "supabase" in last_msg_text.lower():
                         await consult_supabase_source(page)
                         reply_text = "Ola! Abri a consulta interna da nossa base de dados Supabase para verificar as informacoes do seu cadastro/pedido. Um momento, por favor!"
                     else:
-                        reply_text = await generate_smart_response(last_msg_text)
+                        history = await get_conversation_history(page)
+                        reply_text = await generate_smart_response(last_msg_text, history)
                         
                     # Confirmação / Envio
                     should_send = True

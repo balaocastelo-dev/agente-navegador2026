@@ -48,10 +48,10 @@ Diretrizes de conversação:
 """
 
 
-async def generate_smart_response(user_message: str) -> str:
+async def generate_smart_response(user_message: str, history: list[dict] | None = None) -> str:
     """
-    Gera uma resposta inteligente usando o Gemini baseada na intencao do lead
-    e integracao com busca do balao.info.
+    Gera uma resposta inteligente usando o Gemini baseada na intencao do lead,
+    historico da conversa e integracao com busca do balao.info.
     """
     # Fallback estatico se nao houver chave API
     if not config.gemini_api_key:
@@ -64,11 +64,21 @@ async def generate_smart_response(user_message: str) -> str:
             system_instruction=SYSTEM_INSTRUCTION
         )
 
+        # Formata o histórico recente
+        history_context = ""
+        if history:
+            history_context = "Histórico recente da conversa:\n"
+            for msg in history:
+                history_context += f"{msg['sender']}: {msg['text']}\n"
+            history_context += "\n"
+
         # 1. Detectar intencao de busca de produto
         intent_prompt = (
-            "Responda apenas 'YES' se a mensagem a seguir for uma pergunta, dúvida ou solicitação sobre "
-            "produtos de informática, peças, hardware, computadores, notebooks ou periféricos. "
-            f"Responda 'NO' caso contrário.\nMensagem: {user_message}"
+            "Com base no histórico da conversa e na última mensagem do cliente, responda apenas 'YES' se ele "
+            "estiver demonstrando interesse, perguntando ou tirando dúvidas sobre produtos de informática, peças, hardware, "
+            "computadores, notebooks ou periféricos. Responda 'NO' caso contrário.\n\n"
+            f"{history_context}"
+            f"Última mensagem do Cliente: {user_message}"
         )
         intent_res = await model.generate_content_async(intent_prompt)
         intent = intent_res.text.strip().upper()
@@ -77,9 +87,11 @@ async def generate_smart_response(user_message: str) -> str:
         if "YES" in intent:
             # 2. Extrair palavra-chave para busca
             kw_prompt = (
-                "Extraia a principal palavra-chave do produto solicitado pelo cliente para pesquisarmos no site. "
-                "Responda APENAS com a palavra-chave (ex: 'notebook', 'ssd', 'placa de video', 'mouse'). "
-                f"Mensagem: {user_message}"
+                "Com base no histórico da conversa e na última mensagem, extraia a principal palavra-chave do produto "
+                "que o cliente quer pesquisar no site (se ele especificou melhor ou mudou de item, extraia a nova palavra-chave). "
+                "Responda APENAS com a palavra-chave (ex: 'notebook', 'ssd', 'placa de video').\n\n"
+                f"{history_context}"
+                f"Última mensagem do Cliente: {user_message}"
             )
             kw_res = await model.generate_content_async(kw_prompt)
             keyword = kw_res.text.strip().replace("'", "").replace('"', "")
@@ -89,8 +101,12 @@ async def generate_smart_response(user_message: str) -> str:
 
         # 3. Gerar a resposta final contextualizada
         greeting = get_time_greeting()
-        prompt = f"Cumprimento/Saudação a usar (conforme hora atual do sistema): '{greeting}'. Use-o de forma natural no início se adequado.\n"
-        prompt += f"Mensagem do Lead: '{user_message}'\n\n"
+        prompt = (
+            f"Você é o Agente do Balão da Informática. Responda à última mensagem do Cliente considerando o histórico recente abaixo.\n\n"
+            f"{history_context}"
+            f"Cumprimento/Saudação a usar (conforme hora atual do sistema): '{greeting}'. Use-o de forma natural se for o início da conversa ou se adequado.\n"
+            f"Última mensagem do Cliente: '{user_message}'\n\n"
+        )
         if products:
             prompt += "Produtos reais e links correspondentes encontrados no nosso site www.balao.info:\n"
             for p in products:

@@ -46,9 +46,9 @@ async def generate_smart_response(user_message: str) -> str:
         return _get_static_fallback(user_message)
 
     try:
-        # Usamos gemini-1.5-flash ou gemini-2.5-flash para respostas rápidas e eficientes
+        # Usamos gemini-2.5-flash para respostas rapidas e eficientes
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
+            model_name="gemini-2.5-flash",
             system_instruction=SYSTEM_INSTRUCTION
         )
 

@@ -367,19 +367,39 @@ def parse_price(price_str: str) -> float:
 
 
 async def send_message_to_chat(page, text: str, delay_before_send_sec: float = 0.0) -> None:
-    """Insere o texto de forma instantanea no input para evitar timeouts e espera delay se houver link."""
+    """Insere o texto de forma instantanea e digita o link lentamente, esperando o preview carregar."""
     await page.wait_for_selector(INPUT_TEXTBOX, timeout=5000)
     input_field = page.locator(INPUT_TEXTBOX).first
     await input_field.click()
     await asyncio.sleep(0.5)
     
-    # Inserção instantânea de teclado (evita timeout de 30s)
-    await page.keyboard.insert_text(text)
-    
-    # Se houver um link e pedirem delay (para preview)
-    if delay_before_send_sec > 0:
-        log.info(f"Aguardando {delay_before_send_sec}s para carregar a imagem do preview do link...")
-        await asyncio.sleep(delay_before_send_sec)
+    # Identifica se há um link na mensagem
+    url_start = text.find("http://")
+    if url_start == -1:
+        url_start = text.find("https://")
+        
+    if url_start != -1 and delay_before_send_sec > 0:
+        # Separa o texto antes do link e o próprio link
+        text_before_link = text[:url_start]
+        link = text[url_start:]
+        
+        # Insere o texto inicial instantaneamente
+        await page.keyboard.insert_text(text_before_link)
+        await asyncio.sleep(0.5)
+        
+        # Digita o link lentamente/caractere por caractere
+        log.info("Simulando digitação humana para o link do produto...")
+        for char in link:
+            await page.keyboard.press(char)
+            await asyncio.sleep(random.uniform(0.01, 0.03))
+            
+        # Espera de 3.5 a 4 segundos para carregar o preview
+        wait_time = random.uniform(3.5, 4.0)
+        log.info(f"Aguardando {wait_time:.2f}s para o WhatsApp Web carregar o preview do link...")
+        await asyncio.sleep(wait_time)
+    else:
+        # Sem link, insere tudo instantaneamente
+        await page.keyboard.insert_text(text)
         
     await page.keyboard.press("Enter")
     await asyncio.sleep(1.0)

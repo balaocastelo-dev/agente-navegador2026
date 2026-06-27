@@ -45,6 +45,7 @@ Diretrizes de conversação:
 2. Nunca invente links de produtos. Use apenas os links fornecidos explicitamente no contexto.
 3. Incentive o lead a visitar nosso site oficial www.balao.info para conferir os detalhes e comprar.
 4. Se o cliente perguntar por produtos, utilize estritamente a lista de produtos sugerida no contexto.
+5. NUNCA use a sintaxe de link do Markdown como `[texto](url)` ou parenteses em volta de links. Sempre escreva a URL pura diretamente, exatamente como fornecida (ex: Compre aqui: http://www.balao.info/...). Nunca envie a mesma URL duas vezes na mesma mensagem.
 """
 
 
@@ -150,3 +151,165 @@ def _get_static_fallback(user_message: str) -> str:
         f"{greet}! Agradecemos seu contato com o Balao da Informatica Castelo. "
         "Recebemos sua mensagem e em breve um de nossos especialistas ira te responder!"
     )
+
+
+async def classify_follow_up_intent(user_message: str, history: list[dict] | None = None) -> str:
+    """
+    Classifica se a resposta do cliente indica interesse em ver produtos 'CHEAPER' (mais baratos),
+    'EXPENSIVE' (mais caras/mais itens), 'NEW_SEARCH' (se ele mudou de assunto/produto)
+    ou 'OTHER' (outras conversas).
+    """
+    if not config.gemini_api_key:
+        msg_lower = user_message.lower()
+        if any(w in msg_lower for w in ["barat", "baixo", "menor", "desconto"]):
+            return "CHEAPER"
+        if any(w in msg_lower for w in ["car", "alt", "maior", "melhor", "mais"]):
+            return "EXPENSIVE"
+        return "OTHER"
+
+    try:
+        model = genai.GenerativeModel(
+            model_name="gemini-2.5-flash",
+            system_instruction="Você é um classificador de intenções de conversação de e-commerce."
+        )
+        
+        history_context = ""
+        if history:
+            history_context = "Histórico da Conversa:\n"
+            for msg in history:
+                history_context += f"{msg['sender']}: {msg['text']}\n"
+            history_context += "\n"
+
+        prompt = (
+            "Analise a última mensagem do cliente e classifique em uma das seguintes opções:\n"
+            "1. 'CHEAPER': Se o cliente deseja ver opções de produtos mais baratos, menor preço ou com desconto em relação aos mostrados anteriormente.\n"
+            "2. 'EXPENSIVE': Se o cliente deseja ver opções de produtos mais caros, de melhor desempenho, de maior valor ou simplesmente ver mais opções/outros modelos.\n"
+            "3. 'NEW_SEARCH': Se o cliente mudou totalmente de assunto e quer pesquisar um produto diferente (ex: ele estava falando de notebooks e agora pediu teclado).\n"
+            "4. 'OTHER': Se for uma resposta geral (ex: 'obrigado', 'vou ver', 'ok', tirar outra dúvida, etc.).\n\n"
+            "Responda APENAS com uma das quatro palavras: CHEAPER, EXPENSIVE, NEW_SEARCH ou OTHER.\n\n"
+            f"{history_context}"
+            f"Última mensagem do Cliente: '{user_message}'"
+        )
+        
+        res = await model.generate_content_async(prompt)
+        decision = res.text.strip().upper()
+        
+        if "CHEAPER" in decision:
+            return "CHEAPER"
+        elif "EXPENSIVE" in decision:
+            return "EXPENSIVE"
+        elif "NEW_SEARCH" in decision:
+            return "NEW_SEARCH"
+        else:
+            return "OTHER"
+    except Exception as e:
+        log.error(f"Erro ao classificar follow up: {e}")
+        return "OTHER"
+
+
+async def analyze_message_intent_and_keyword(user_message: str, history: list[dict] | None = None) -> dict:
+    """
+    Analisa se a mensagem indica intenção de busca de produto ('YES' ou 'NO')
+    e extrai a palavra-chave.
+    """
+    if not config.gemini_api_key:
+        return {"intent": "NO", "keyword": ""}
+
+    try:
+        model = genai.GenerativeModel(
+            model_name="gemini-2.5-flash"
+        )
+        
+        history_context = ""
+        if history:
+            history_context = "Histórico da Conversa:\n"
+            for msg in history:
+                history_context += f"{msg['sender']}: {msg['text']}\n"
+            history_context += "\n"
+
+        intent_prompt = (
+            "Com base no histórico da conversa e na última mensagem do cliente, responda apenas 'YES' se ele "
+            "estiver demonstrando interesse, perguntando ou tirando dúvidas sobre produtos de informática, peças, hardware, "
+            "computadores, notebooks ou periféricos. Responda 'NO' caso contrário.\n\n"
+            f"{history_context}"
+            f"Última mensagem do Cliente: {user_message}"
+        )
+        intent_res = await model.generate_content_async(intent_prompt)
+        intent = intent_res.text.strip().upper()
+        
+        keyword = ""
+        if "YES" in intent:
+            kw_prompt = (
+                "Com base no histórico da conversa e na última mensagem, extraia a principal palavra-chave do produto "
+                "que o cliente quer pesquisar no site. Responda APENAS com a palavra-chave (ex: 'notebook', 'ssd', 'placa de video').\n\n"
+                f"{history_context}"
+                f"Última mensagem do Cliente: {user_message}"
+            )
+            kw_res = await model.generate_content_async(kw_prompt)
+            keyword = kw_res.text.strip().replace("'", "").replace('"', "")
+            
+        return {"intent": "YES" if "YES" in intent else "NO", "keyword": keyword}
+    except Exception as e:
+        log.error(f"Erro ao analisar intenção: {e}")
+        return {"intent": "NO", "keyword": ""}
+
+
+async def generate_friendly_no_products_response(user_message: str, keyword: str, history: list[dict] | None = None) -> str:
+    """Gera uma resposta amigavel quando nao ha produtos em estoque."""
+    if not config.gemini_api_key:
+        return _get_static_fallback(user_message)
+        
+    try:
+        model = genai.GenerativeModel(
+            model_name="gemini-2.5-flash",
+            system_instruction=SYSTEM_INSTRUCTION
+        )
+        history_context = ""
+        if history:
+            history_context = "Histórico recente da conversa:\n"
+            for msg in history:
+                history_context += f"{msg['sender']}: {msg['text']}\n"
+            history_context += "\n"
+            
+        greeting = get_time_greeting()
+        prompt = (
+            f"Responda ao cliente explicando educadamente que no momento não encontramos opções de '{keyword}' em estoque no site, "
+            f"mas recomende que ele dê uma olhada no site completo www.balao.info ou pergunte se deseja cotação.\n\n"
+            f"{history_context}"
+            f"Cumprimento a usar (conforme hora do sistema): '{greeting}'\n"
+            f"Última mensagem: {user_message}"
+        )
+        res = await model.generate_content_async(prompt)
+        return res.text.strip()
+    except Exception:
+        return _get_static_fallback(user_message)
+
+
+async def generate_general_gemini_response(user_message: str, history: list[dict] | None = None) -> str:
+    """Gera uma resposta geral usando o Gemini para tirar duvidas gerais."""
+    if not config.gemini_api_key:
+        return _get_static_fallback(user_message)
+        
+    try:
+        model = genai.GenerativeModel(
+            model_name="gemini-2.5-flash",
+            system_instruction=SYSTEM_INSTRUCTION
+        )
+        history_context = ""
+        if history:
+            history_context = "Histórico recente da conversa:\n"
+            for msg in history:
+                history_context += f"{msg['sender']}: {msg['text']}\n"
+            history_context += "\n"
+            
+        greeting = get_time_greeting()
+        prompt = (
+            f"Responda à última mensagem do cliente de forma amigável e profissional, considerando o histórico.\n\n"
+            f"{history_context}"
+            f"Cumprimento a usar (conforme hora do sistema): '{greeting}'\n"
+            f"Última mensagem: {user_message}"
+        )
+        res = await model.generate_content_async(prompt)
+        return res.text.strip()
+    except Exception:
+        return _get_static_fallback(user_message)

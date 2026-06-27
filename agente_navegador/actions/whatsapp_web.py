@@ -15,7 +15,13 @@ from agente_navegador import browser as brw
 from agente_navegador.actions.company_profile import get_company_info, scrape_company_info
 from agente_navegador.logger import get_logger, log_agent, log_success
 from agente_navegador.supervisor import confirm_critical_action
-from agente_navegador.actions.gemini_responder import generate_smart_response
+from agente_navegador.actions.gemini_responder import (
+    generate_smart_response,
+    classify_follow_up_intent,
+    analyze_message_intent_and_keyword,
+    generate_friendly_no_products_response,
+    generate_general_gemini_response
+)
 
 log = get_logger(__name__)
 
@@ -41,6 +47,9 @@ MESSAGE_TEXT_SELECTOR = ".selectable-text, span.selectable-text, span[data-testi
 
 # Estado global simples para controle via API
 _selected_chat_name: str | None = None
+
+# Sessões de busca de produtos por chat para paginação
+_chat_sessions: dict[str, dict] = {}
 
 
 def select_target_chat(chat_name: str | None) -> None:
@@ -348,6 +357,191 @@ async def get_conversation_history(page) -> list[dict]:
         return []
 
 
+def parse_price(price_str: str) -> float:
+    """Converte string de preço (ex: 'R$ 1.717,43') para float."""
+    clean = price_str.replace("R$", "").replace(" ", "").replace(".", "").replace(",", ".").strip()
+    try:
+        return float(clean)
+    except ValueError:
+        return 999999.0
+
+
+async def send_message_to_chat(page, text: str, delay_before_send_sec: float = 0.0) -> None:
+    """Insere o texto de forma instantanea no input para evitar timeouts e espera delay se houver link."""
+    await page.wait_for_selector(INPUT_TEXTBOX, timeout=5000)
+    input_field = page.locator(INPUT_TEXTBOX).first
+    await input_field.click()
+    await asyncio.sleep(0.5)
+    
+    # Inserção instantânea de teclado (evita timeout de 30s)
+    await page.keyboard.insert_text(text)
+    
+    # Se houver um link e pedirem delay (para preview)
+    if delay_before_send_sec > 0:
+        log.info(f"Aguardando {delay_before_send_sec}s para carregar a imagem do preview do link...")
+        await asyncio.sleep(delay_before_send_sec)
+        
+    await page.keyboard.press("Enter")
+    await asyncio.sleep(1.0)
+
+
+async def confirm_and_send_text(page, text: str, require_confirmation: bool, chat_title: str, delay: float = 0.0) -> bool:
+    """Wrapper para confirmacao critica e envio de mensagem."""
+    should_send = True
+    if require_confirmation:
+        should_send = confirm_critical_action(
+            f"Enviar para '{chat_title}':\n\n{text}"
+        )
+    if should_send:
+        await send_message_to_chat(page, text, delay_before_send_sec=delay)
+        return True
+    else:
+        log.warning(f"Mensagem para '{chat_title}' recusada pelo operador.")
+        return False
+
+
+async def show_next_options(page, chat_title: str, require_confirmation: bool) -> None:
+    """Exibe as próximas 3 opções da busca e pergunta sobre mais caras/baratas."""
+    session = _chat_sessions.get(chat_title)
+    if not session:
+        return
+        
+    products = session["products"]
+    idx = session["current_index"]
+    
+    to_show = products[idx:idx+3]
+    if not to_show:
+        msg = "Essas sao todas as opcoes que encontramos no momento! Deseja pesquisar outro produto?"
+        await confirm_and_send_text(page, msg, require_confirmation, chat_title)
+        return
+        
+    log.info(f"Mostrando {len(to_show)} produtos para '{chat_title}'...")
+    for p in to_show:
+        product_text = (
+            f"📦 *{p['title']}*\n"
+            f"💰 Preço: {p['price']}\n"
+            f"🔗 Link: {p['link']}"
+        )
+        # Sempre espera 3 segundos após digitar o link do produto para o preview carregar
+        await confirm_and_send_text(page, product_text, require_confirmation, chat_title, delay=3.0)
+        
+    session["current_index"] = idx + len(to_show)
+    session["last_direction"] = "forward"
+    
+    follow_up = "Gostaria de ver opcoes mais baratas ou mais caras que essas que te mostrei?"
+    await confirm_and_send_text(page, follow_up, require_confirmation, chat_title)
+
+
+async def show_cheaper_options(page, chat_title: str, require_confirmation: bool) -> None:
+    """Volta na lista ordenada para mostrar opções mais baratas."""
+    session = _chat_sessions.get(chat_title)
+    if not session:
+        return
+        
+    products = session["products"]
+    idx = session["current_index"]
+    
+    new_idx = idx - 6
+    if new_idx < 0:
+        msg = "Essas que te mostrei no inicio ja sao as nossas opcoes mais baratas em estoque! Gostaria de ver opcoes mais caras?"
+        await confirm_and_send_text(page, msg, require_confirmation, chat_title)
+        return
+        
+    to_show = products[new_idx:new_idx+3]
+    log.info(f"Mostrando {len(to_show)} produtos mais baratos para '{chat_title}'...")
+    for p in to_show:
+        product_text = (
+            f"📦 *{p['title']}*\n"
+            f"💰 Preço: {p['price']}\n"
+            f"🔗 Link: {p['link']}"
+        )
+        await confirm_and_send_text(page, product_text, require_confirmation, chat_title, delay=3.0)
+        
+    session["current_index"] = new_idx + len(to_show)
+    session["last_direction"] = "backward"
+    
+    follow_up = "Gostaria de ver opcoes mais baratas ou mais caras que essas?"
+    await confirm_and_send_text(page, follow_up, require_confirmation, chat_title)
+
+
+async def show_expensive_options(page, chat_title: str, require_confirmation: bool) -> None:
+    """Mostra opções mais caras (próximas na lista ordenada)."""
+    session = _chat_sessions.get(chat_title)
+    if not session:
+        return
+        
+    products = session["products"]
+    idx = session["current_index"]
+    
+    to_show = products[idx:idx+3]
+    if not to_show:
+        msg = "Ja te mostrei todas as opcoes mais caras disponiveis. Deseja pesquisar outro produto?"
+        await confirm_and_send_text(page, msg, require_confirmation, chat_title)
+        return
+        
+    log.info(f"Mostrando {len(to_show)} produtos mais caros para '{chat_title}'...")
+    for p in to_show:
+        product_text = (
+            f"📦 *{p['title']}*\n"
+            f"💰 Preço: {p['price']}\n"
+            f"🔗 Link: {p['link']}"
+        )
+        await confirm_and_send_text(page, product_text, require_confirmation, chat_title, delay=3.0)
+        
+    session["current_index"] = idx + len(to_show)
+    session["last_direction"] = "forward"
+    
+    follow_up = "Gostaria de ver opcoes mais baratas ou mais caras que essas?"
+    await confirm_and_send_text(page, follow_up, require_confirmation, chat_title)
+
+
+async def handle_whatsapp_message_flow(page, user_message: str, history: list[dict], require_confirmation: bool, chat_title: str) -> None:
+    """Coordena o fluxo inteligente de respostas e paginação de busca."""
+    session = _chat_sessions.get(chat_title)
+    
+    if session and "products" in session and session["products"]:
+        decision = await classify_follow_up_intent(user_message, history)
+        log.info(f"Classificacao do follow up para '{chat_title}': {decision}")
+        
+        if decision == "CHEAPER":
+            await show_cheaper_options(page, chat_title, require_confirmation)
+            return
+        elif decision == "EXPENSIVE":
+            await show_expensive_options(page, chat_title, require_confirmation)
+            return
+        elif decision == "NEW_SEARCH":
+            # Reseta a busca antiga para iniciar nova busca
+            _chat_sessions.pop(chat_title, None)
+            
+    # Nova busca ou dúvida geral
+    intent_data = await analyze_message_intent_and_keyword(user_message, history)
+    log.info(f"Analise de intencao para '{chat_title}': {intent_data}")
+    
+    if intent_data["intent"] == "YES" and intent_data["keyword"]:
+        from agente_navegador.actions.balao_search import search_balao_products
+        
+        keyword = intent_data["keyword"]
+        products = await search_balao_products(keyword)
+        
+        if products:
+            products.sort(key=lambda p: parse_price(p["price"]))
+            
+            _chat_sessions[chat_title] = {
+                "keyword": keyword,
+                "products": products,
+                "current_index": 0,
+                "last_direction": "forward"
+            }
+            
+            await show_next_options(page, chat_title, require_confirmation)
+        else:
+            reply_text = await generate_friendly_no_products_response(user_message, keyword, history)
+            await confirm_and_send_text(page, reply_text, require_confirmation, chat_title)
+    else:
+        reply_text = await generate_general_gemini_response(user_message, history)
+        await confirm_and_send_text(page, reply_text, require_confirmation, chat_title)
+
+
 async def run_auto_reply_loop(
     message_template: str,
     require_confirmation: bool = True,
@@ -435,31 +629,12 @@ async def run_auto_reply_loop(
                     if "supabase" in last_msg_text.lower():
                         await consult_supabase_source(page)
                         reply_text = "Ola! Abri a consulta interna da nossa base de dados Supabase para verificar as informacoes do seu cadastro/pedido. Um momento, por favor!"
-                    else:
-                        history = await get_conversation_history(page)
-                        reply_text = await generate_smart_response(last_msg_text, history)
-                        
-                    # Confirmação / Envio
-                    should_send = True
-                    if require_confirmation:
-                        should_send = confirm_critical_action(
-                            f"Responder para '{active_chat_title}' com:\n\n{reply_text}"
-                        )
-                        
-                    if should_send:
-                        await page.wait_for_selector(INPUT_TEXTBOX, timeout=5000)
-                        input_field = page.locator(INPUT_TEXTBOX).first
-                        await input_field.click()
-                        await asyncio.sleep(0.5)
-                        
-                        log.info(f"Digitando resposta para {active_chat_title}...")
-                        await input_field.type(reply_text, delay=35)
-                        await asyncio.sleep(0.5)
-                        await page.keyboard.press("Enter")
-                        log_success(f"Resposta enviada para '{active_chat_title}'!")
+                        await confirm_and_send_text(page, reply_text, require_confirmation, active_chat_title)
                         replied_count += 1
                     else:
-                        log.warning(f"Resposta para '{active_chat_title}' recusada pelo operador.")
+                        history = await get_conversation_history(page)
+                        await handle_whatsapp_message_flow(page, last_msg_text, history, require_confirmation, active_chat_title)
+                        replied_count += 1
                     
                     # Atualiza o ID da última mensagem processada
                     last_processed_msg_id = msg_id

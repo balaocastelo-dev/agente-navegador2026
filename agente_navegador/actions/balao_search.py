@@ -80,7 +80,7 @@ async def search_balao_products(query: str) -> List[Dict[str, str]]:
                     continue
 
             log.info(f"Busca finalizada. Encontrados {len(products)} produtos para '{query}'.")
-            return products[:5]  # Retorna no maximo 5 produtos relevantes
+            return products[:15]  # Retorna no maximo 15 produtos relevantes
 
     except Exception as e:
         log.error(f"Erro durante a requisicao de busca ao balao.info: {e}")

@@ -1,0 +1,127 @@
+name: instagram_setup
+description: >
+  Assistente supervisionado para conexão da conta Instagram profissional
+  (@balaodainformatica_castelo) à Página do Facebook e coleta de IDs técnicos.
+  Empresa: Balão da Informática Castelo — Campinas/SP
+version: "1.0"
+tags:
+  - instagram
+  - facebook
+  - professional-account
+  - graph-api
+
+steps:
+  # ── 1. Instagram Business ────────────────────────────────────────────────
+  - action: goto
+    url: https://www.instagram.com/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 1 — LOGIN NO INSTAGRAM
+      Faça login no Instagram com a conta da empresa:
+        Instagram: @balaodainformatica_castelo
+      NÃO automatize o login. Digite suas credenciais manualmente.
+      Confirme quando estiver logado no Instagram.
+
+  - action: screenshot
+    name: 01-instagram-logado
+
+  - action: extract_url
+    save_as: instagram_home_url
+
+  # ── 2. Verificar conta Profissional ──────────────────────────────────────
+  - action: goto
+    url: https://www.instagram.com/accounts/edit/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 2 — VERIFICAR CONTA PROFISSIONAL
+      Verifique se a conta está configurada como "Conta Profissional" (Criador ou Empresa).
+      Se ainda for conta pessoal:
+        1. Vá em Configurações → Conta → Mudar para Conta Profissional
+        2. Selecione "Empresa"
+        3. Selecione a categoria: Eletrônicos / Computadores
+      Confirme quando a conta for do tipo Empresa.
+
+  - action: screenshot
+    name: 02-instagram-conta-profissional
+
+  # ── 3. Conectar à Página do Facebook ─────────────────────────────────────
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 3 — CONECTAR AO FACEBOOK
+      No Instagram (app ou web):
+        Configurações → Conta → Conta Vinculada → Facebook
+      Conecte à Página do Facebook da empresa (não ao perfil pessoal).
+      Esta conexão é necessária para usar a Instagram Graph API.
+      Confirme quando a Página do Facebook estiver conectada.
+
+  - action: screenshot
+    name: 03-instagram-facebook-conectado
+
+  # ── 4. Coletar Instagram User ID via Graph API ───────────────────────────
+  - action: goto
+    url: https://developers.facebook.com/tools/explorer/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 4 — COLETAR INSTAGRAM USER ID
+      No Graph Explorer:
+        1. Selecione seu App Meta
+        2. Selecione permissões: instagram_basic, instagram_content_publish
+        3. Na URL do Graph API, teste: /me/accounts
+        4. Encontre a Página e anote o "access_token" da página
+        5. Com o token da página, teste: /{page-id}?fields=instagram_business_account
+        6. Anote o Instagram Business Account ID
+      NÃO gere token permanente. Apenas copie o ID.
+      Confirme quando tiver o Instagram Business Account ID.
+
+  - action: screenshot
+    name: 04-instagram-graph-explorer
+
+  - action: extract_url
+    save_as: graph_explorer_instagram_url
+
+  # ── 5. Verificar perfil no Instagram Business ────────────────────────────
+  - action: goto
+    url: https://business.instagram.com/
+
+  - action: screenshot
+    name: 05-instagram-business-portal
+
+  - action: extract_url
+    save_as: instagram_business_url
+
+  # ── 6. Permissões necessárias ────────────────────────────────────────────
+  - action: goto
+    url: https://developers.facebook.com/docs/instagram-api/overview
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 5 — VERIFICAR PERMISSÕES NECESSÁRIAS
+      Leia a documentação sobre permissões necessárias para a Instagram Graph API:
+        - instagram_basic (leitura básica)
+        - instagram_content_publish (publicação de conteúdo)
+        - instagram_manage_comments (gerenciar comentários)
+        - instagram_manage_insights (insights)
+      Anote quais permissões seu app precisará solicitar.
+      Confirme para prosseguir.
+
+  - action: screenshot
+    name: 06-instagram-api-docs
+
+  # ── 7. Finalização ────────────────────────────────────────────────────────
+  - action: human_checkpoint
+    message: >
+      ✅ FINALIZAÇÃO — Instagram Setup Concluído
+
+      Próximos passos:
+      1. Solicitar permissões avançadas via revisão do app Meta.
+      2. Configurar webhook para receber notificações de menções e comentários.
+      3. Testar publicação via API no modo sandbox.
+      4. Solicitar aprovação de permissões de produção.
+
+      Confirme para encerrar o agente.
+
+  - action: screenshot
+    name: 07-finalizacao-instagram

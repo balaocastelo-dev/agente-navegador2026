@@ -1,0 +1,162 @@
+name: meta_whatsapp_setup
+description: >
+  Assistente supervisionado para configuração do Meta Business Manager,
+  Meta for Developers e WhatsApp Cloud API.
+  Empresa: Balão da Informática Castelo — Campinas/SP
+  TODAS as ações críticas exigem aprovação humana.
+version: "1.0"
+tags:
+  - meta
+  - whatsapp
+  - cloud-api
+  - business
+
+steps:
+  # ── 1. Meta Business Manager ─────────────────────────────────────────────
+  - action: goto
+    url: https://business.facebook.com/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 1 — META BUSINESS MANAGER
+      Faça login manualmente na conta Meta Business do Balão da Informática Castelo.
+      Verifique se a conta correta está selecionada (empresa: Balão da Informática Castelo).
+      Confirme quando estiver logado e na tela inicial do Business Manager.
+
+  - action: screenshot
+    name: 01-meta-business-home
+
+  - action: extract_url
+    save_as: meta_business_url
+
+  # ── 2. Configurações do Business ─────────────────────────────────────────
+  - action: goto
+    url: https://business.facebook.com/settings/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 2 — CONFIGURAÇÕES DO BUSINESS
+      Você está em Configurações do Business.
+      Anote o Business ID que aparece no rodapé ou nas configurações gerais.
+      Confirme para prosseguir.
+
+  - action: screenshot
+    name: 02-meta-business-settings
+
+  - action: extract_url
+    save_as: meta_business_settings_url
+
+  # ── 3. Meta for Developers ───────────────────────────────────────────────
+  - action: goto
+    url: https://developers.facebook.com/apps/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 3 — META FOR DEVELOPERS
+      Você está na área de Apps do Meta for Developers.
+      Verifique se está logado com a mesma conta Meta Business.
+      NÃO crie um app novo ainda. Apenas confirme que você vê a lista de apps
+      (ou a tela de criação caso não haja apps).
+
+  - action: screenshot
+    name: 03-meta-developers-apps
+
+  - action: extract_url
+    save_as: meta_developers_url
+
+  # ── 4. Verificar/Criar App de Tipo Business ───────────────────────────────
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 4 — VERIFICAR/CRIAR APP META
+      Se ainda não existe um app para o Balão, clique em "Criar App".
+      Selecione o tipo: "Business" (ou "Empresa").
+      Preencha:
+        - Nome do app: Balão da Informática Castelo
+        - E-mail de contato: (e-mail da empresa)
+        - Business Account: Balão da Informática Castelo
+      Clique em "Criar App" e confirme quando o app estiver criado.
+
+  - action: screenshot
+    name: 04-meta-app-created
+
+  - action: extract_url
+    save_as: meta_app_url
+
+  # ── 5. Adicionar produto WhatsApp ao App ─────────────────────────────────
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 5 — ADICIONAR WHATSAPP AO APP
+      No painel do app, clique em "Adicionar Produto" (ou "Add Product").
+      Localize "WhatsApp" e clique em "Configurar".
+      Selecione a conta WhatsApp Business (WABA) correta ou crie uma nova
+      caso não exista.
+      Confirme quando o WhatsApp aparecer no menu lateral.
+
+  - action: screenshot
+    name: 05-whatsapp-produto-adicionado
+
+  # ── 6. Coletar Phone Number ID e WABA ID ────────────────────────────────
+  - action: goto
+    url: https://developers.facebook.com/apps/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 6 — COLETAR IDs TÉCNICOS
+      Navegue até: App → WhatsApp → Primeiros Passos (Getting Started).
+      Você verá:
+        - Phone Number ID
+        - WhatsApp Business Account ID (WABA ID)
+      Anote esses IDs. NÃO registre o número real ainda.
+      Confirme quando tiver anotado os IDs.
+
+  - action: screenshot
+    name: 06-whatsapp-ids
+
+  - action: extract_url
+    save_as: whatsapp_setup_url
+
+  # ── 7. Graph Explorer ────────────────────────────────────────────────────
+  - action: goto
+    url: https://developers.facebook.com/tools/explorer/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 7 — GRAPH EXPLORER
+      Você está no Graph Explorer.
+      Selecione seu app no menu superior.
+      Gere um token de acesso TEMPORÁRIO (não permanente) para testar.
+      NÃO clique em "Gerar Token Permanente" sem revisão adicional.
+      Confirme quando tiver o token temporário.
+
+  - action: screenshot
+    name: 07-graph-explorer
+
+  - action: extract_url
+    save_as: graph_explorer_url
+
+  # ── 8. Documentação WhatsApp Cloud API ───────────────────────────────────
+  - action: goto
+    url: https://developers.facebook.com/docs/whatsapp/cloud-api/get-started
+
+  - action: screenshot
+    name: 08-whatsapp-cloud-api-docs
+
+  - action: extract_url
+    save_as: whatsapp_docs_url
+
+  # ── 9. Finalização ────────────────────────────────────────────────────────
+  - action: human_checkpoint
+    message: >
+      ✅ PASSO 9 — FINALIZAÇÃO
+      Configuração guiada do Meta Business e WhatsApp Cloud API concluída.
+
+      Próximos passos manuais:
+      1. Adicionar o número real ao WhatsApp Business (exige código de verificação).
+      2. Solicitar acesso à API de Produção quando o app estiver testado.
+      3. Configurar webhook para receber mensagens.
+      4. Submeter app para revisão SOMENTE após testar no sandbox.
+
+      Confirme para encerrar o agente.
+
+  - action: screenshot
+    name: 09-finalizacao

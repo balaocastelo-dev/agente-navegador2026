@@ -1,0 +1,50 @@
+# ── Arquivos de ambiente ───────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Perfil do navegador (sessões locais) ───────────────────────────────────
+browser-profile/
+
+# ── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ── Ambientes virtuais ─────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── pytest / coverage ─────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# ── IDE ───────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── OS ────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Playwright ────────────────────────────────────────────────────────────
+playwright-report/
+test-results/
+
+# ── Dados coletados / sensíveis ────────────────────────────────────────────
+# NÃO subir logs nem screenshots com dados reais (opcional — remova se quiser versionar)
+# logs/*.log
+# screenshots/*.png

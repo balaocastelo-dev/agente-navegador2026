@@ -1,0 +1,165 @@
+name: tiktok_developers_setup
+description: >
+  Assistente supervisionado para verificação/criação de app no TikTok Developers
+  e configuração da Content Posting API.
+  Empresa: Balão da Informática Castelo — Campinas/SP
+version: "1.0"
+tags:
+  - tiktok
+  - developers
+  - content-posting-api
+  - tiktok-for-business
+
+steps:
+  # ── 1. TikTok Developers Portal ──────────────────────────────────────────
+  - action: goto
+    url: https://developers.tiktok.com/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 1 — PORTAL TIKTOK DEVELOPERS
+      Você está no portal TikTok for Developers.
+      Clique em "Login" e faça login com a conta TikTok Business da empresa.
+      NÃO automatize o login.
+      Confirme quando estiver logado.
+
+  - action: screenshot
+    name: 01-tiktok-developers-home
+
+  - action: extract_url
+    save_as: tiktok_developers_url
+
+  # ── 2. Gerenciador de Apps ────────────────────────────────────────────────
+  - action: goto
+    url: https://developers.tiktok.com/apps/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 2 — GERENCIADOR DE APPS TIKTOK
+      Você está no gerenciador de apps.
+      Verifique se já existe um app para o Balão da Informática Castelo.
+      Se não existir, precisaremos criar um novo app.
+      NÃO crie o app ainda. Apenas verifique e confirme.
+
+  - action: screenshot
+    name: 02-tiktok-apps-list
+
+  - action: extract_url
+    save_as: tiktok_apps_url
+
+  # ── 3. Criar novo App (se necessário) ────────────────────────────────────
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 3 — CRIAR APP TIKTOK (SE NECESSÁRIO)
+      Se não existe app:
+        1. Clique em "Create App" (Criar App)
+        2. Preencha:
+           - App Name: Balão da Informática Castelo
+           - App Category: Business (ou E-commerce)
+           - Description: Integração de conteúdo para Balão da Informática Castelo
+        3. NÃO clique em "Submit for Review" agora
+        4. Salve como rascunho
+      Confirme quando o app estiver criado (ou se já existia).
+
+  - action: screenshot
+    name: 03-tiktok-app-criado
+
+  # ── 4. Configurar Content Posting API ────────────────────────────────────
+  - action: goto
+    url: https://developers.tiktok.com/doc/content-posting-api-get-started
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 4 — CONTENT POSTING API — DOCUMENTAÇÃO
+      Você está na documentação da Content Posting API.
+      Leia os requisitos para solicitar acesso:
+        - A API permite publicar vídeos e fotos no TikTok via API
+        - Precisa de aprovação para acesso à API de produção
+        - Há um ambiente de sandbox para testes
+      Anote os escopos necessários:
+        - video.publish
+        - video.list
+      Confirme quando tiver lido os requisitos.
+
+  - action: screenshot
+    name: 04-tiktok-content-api-docs
+
+  - action: extract_url
+    save_as: tiktok_content_api_docs_url
+
+  # ── 5. Configurar produtos no App ─────────────────────────────────────────
+  - action: goto
+    url: https://developers.tiktok.com/apps/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 5 — ADICIONAR PRODUTOS AO APP
+      No seu app TikTok:
+        1. Clique no app criado
+        2. Vá em "Products" (Produtos)
+        3. Adicione "Login Kit" (necessário para autenticação)
+        4. Adicione "Content Posting API"
+        5. Configure os escopos: video.publish
+        6. Preencha as URLs de Redirect (pode ser http://localhost para testes)
+      NÃO submeta para revisão ainda.
+      Confirme quando os produtos estiverem configurados.
+
+  - action: screenshot
+    name: 05-tiktok-app-produtos
+
+  # ── 6. Coletar Client Key (App ID) ────────────────────────────────────────
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 6 — COLETAR CLIENT KEY
+      No painel do app TikTok, vá em "App Info" (Informações do App).
+      Anote o "Client Key" (equivalente ao App ID).
+      NÃO copie o "Client Secret" — este é dado sensível e não deve ser
+      anotado em nenhum arquivo público.
+      Confirme quando tiver o Client Key anotado com segurança.
+
+  - action: screenshot
+    name: 06-tiktok-client-key
+
+  # ── 7. TikTok for Business (Ads Manager) ─────────────────────────────────
+  - action: goto
+    url: https://ads.tiktok.com/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 7 — TIKTOK FOR BUSINESS
+      Você está no TikTok Ads Manager.
+      Verifique se a conta Business está configurada.
+      Para integração de leads via TikTok, você pode usar:
+        - Lead Generation Ads (dentro do Ads Manager)
+        - TikTok Lead Generation API
+      Apenas verifique o status da conta. NÃO crie campanhas agora.
+      Confirme para prosseguir.
+
+  - action: screenshot
+    name: 07-tiktok-ads-manager
+
+  - action: extract_url
+    save_as: tiktok_ads_url
+
+  # ── 8. Finalização ────────────────────────────────────────────────────────
+  - action: human_checkpoint
+    message: >
+      ✅ FINALIZAÇÃO — TikTok Developers Setup Concluído
+
+      Dados que você deve ter anotado:
+        ✓ TikTok App ID / Client Key
+        ✓ Produtos configurados (Login Kit + Content Posting API)
+        ✓ Status da conta TikTok Business
+
+      Próximos passos:
+      1. Testar autenticação OAuth com Client Key no ambiente sandbox.
+      2. Implementar fluxo de publicação de conteúdo via Content Posting API.
+      3. Submeter app para revisão quando testes estiverem concluídos.
+      4. Configurar integração de leads via TikTok Lead Generation.
+
+      AVISO: NÃO compartilhe o Client Secret em nenhum arquivo de configuração público.
+
+      Confirme para encerrar o agente.
+
+  - action: screenshot
+    name: 08-finalizacao-tiktok

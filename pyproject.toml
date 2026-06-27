@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "agente-navegador"
+version = "0.1.0"
+description = "Agente navegador local e supervisionado para integrações Meta/WhatsApp/Instagram/Facebook/TikTok"
+authors = [{ name = "Balão da Informática Castelo", email = "contato@balao.info" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["playwright", "browser-automation", "meta", "whatsapp", "instagram", "tiktok", "supervisor"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Intended Audience :: Developers",
+]
+dependencies = [
+    "playwright>=1.44.0",
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.0",
+    "pyyaml>=6.0.1",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.7.0",
+    "rich>=13.7.0",
+    "typer>=0.12.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[project.scripts]
+agente-navegador = "agente_navegador.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/balaocastelo-dev/agente-navegador"
+Repository = "https://github.com/balaocastelo-dev/agente-navegador"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agente_navegador*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

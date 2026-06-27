@@ -1,0 +1,147 @@
+name: facebook_page_setup
+description: >
+  Assistente supervisionado para coleta do Page ID, verificação de permissões
+  e informações técnicas da Página do Facebook da empresa.
+  Empresa: Balão da Informática Castelo — Campinas/SP
+version: "1.0"
+tags:
+  - facebook
+  - page
+  - page-id
+  - permissions
+
+steps:
+  # ── 1. Acessar Facebook ───────────────────────────────────────────────────
+  - action: goto
+    url: https://www.facebook.com/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 1 — LOGIN NO FACEBOOK
+      Faça login no Facebook com a conta administradora da Página.
+      NÃO automatize o login. Digite suas credenciais manualmente.
+      Confirme quando estiver logado.
+
+  - action: screenshot
+    name: 01-facebook-logado
+
+  # ── 2. Acessar a Página da empresa ───────────────────────────────────────
+  - action: goto
+    url: https://www.facebook.com/balaodainformatica
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 2 — ACESSAR PÁGINA DA EMPRESA
+      Você está na Página do Facebook do Balão.
+      Verifique se é a Página correta (não um perfil pessoal).
+      Confirme para prosseguir.
+
+  - action: screenshot
+    name: 02-facebook-pagina
+
+  - action: extract_url
+    save_as: facebook_page_url
+
+  # ── 3. Coletar Page ID ────────────────────────────────────────────────────
+  - action: goto
+    url: https://www.facebook.com/balaodainformatica/about
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 3 — COLETAR PAGE ID
+      Na seção "Sobre" da Página, role até o final.
+      O Page ID aparece no rodapé: "ID da Página: XXXXXXXXXX"
+      Anote o Page ID numérico.
+      Alternativamente, use o Graph Explorer:
+        GET /{seu-usuario}?fields=id,name
+      Confirme quando tiver anotado o Page ID.
+
+  - action: screenshot
+    name: 03-facebook-page-id
+
+  - action: extract_url
+    save_as: facebook_about_url
+
+  # ── 4. Verificar Função de Administrador ─────────────────────────────────
+  - action: goto
+    url: https://www.facebook.com/settings/?tab=pages
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 4 — VERIFICAR FUNÇÃO DE ADMINISTRADOR
+      Confirme que sua conta tem função de "Administrador" na Página.
+      Isso é necessário para usar a Pages API com permissões completas.
+      Confirme para prosseguir.
+
+  - action: screenshot
+    name: 04-facebook-admin-check
+
+  # ── 5. Meta Business Suite — Página ──────────────────────────────────────
+  - action: goto
+    url: https://business.facebook.com/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 5 — META BUSINESS SUITE
+      No Meta Business Suite, verifique se a Página está associada ao Business Manager.
+      Se não estiver:
+        Configurações → Páginas → Adicionar Página
+        Adicione a Página do Balão.
+      Confirme quando a Página estiver no Business Manager.
+
+  - action: screenshot
+    name: 05-meta-business-page
+
+  - action: extract_url
+    save_as: meta_business_page_url
+
+  # ── 6. Graph API — Coletar dados da Página ───────────────────────────────
+  - action: goto
+    url: https://developers.facebook.com/tools/explorer/
+
+  - action: human_checkpoint
+    message: >
+      🔵 PASSO 6 — GRAPH EXPLORER — DADOS DA PÁGINA
+      No Graph Explorer, com token de usuário (temporário):
+        1. Teste: GET /me/accounts
+           (lista suas Páginas e tokens de página)
+        2. Anote:
+           - "id": (Page ID)
+           - "name": (nome da Página)
+           - "access_token": (token temporário da Página — NÃO salvar)
+        3. Com o Page ID, teste: GET /{page-id}?fields=id,name,fan_count,category
+      Confirme quando tiver anotado o Page ID.
+
+  - action: screenshot
+    name: 06-graph-explorer-page
+
+  # ── 7. Verificar permissões Pages API ────────────────────────────────────
+  - action: goto
+    url: https://developers.facebook.com/docs/pages-api
+
+  - action: screenshot
+    name: 07-pages-api-docs
+
+  - action: extract_url
+    save_as: pages_api_docs_url
+
+  # ── 8. Finalização ────────────────────────────────────────────────────────
+  - action: human_checkpoint
+    message: >
+      ✅ FINALIZAÇÃO — Facebook Page Setup Concluído
+
+      Dados que você deve ter anotado:
+        ✓ Page ID numérico
+        ✓ Nome exato da Página
+        ✓ Confirmação de função Administrador
+        ✓ Página associada ao Business Manager
+
+      Próximos passos:
+      1. Usar o Page ID para configurar webhooks da Pages API.
+      2. Solicitar permissão "pages_manage_posts" na revisão do app.
+      3. Configurar integração com sistema de leads.
+
+      Confirme para encerrar o agente.
+
+  - action: screenshot
+    name: 08-finalizacao-facebook-page

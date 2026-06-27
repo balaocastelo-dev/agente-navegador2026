@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agente Navegador — Preview | Balão da Informática Castelo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+  :root {
+    --red:      #e53935;
+    --red-dark: #b71c1c;
+    --red-glow: rgba(229, 57, 53, 0.25);
+    --dark:     #080808;
+    --surface:  #111111;
+    --card:     #161616;
+    --card2:    #1c1c1c;
+    --border:   #242424;
+    --border2:  #2e2e2e;
+    --text:     #f0f0f0;
+    --muted:    #666;
+    --muted2:   #888;
+    --success:  #22c55e;
+    --warn:     #f59e0b;
+    --info:     #60a5fa;
+    --purple:   #a855f7;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--dark);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ─────────────────────────────────────────────────────────── */
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(8,8,8,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: var(--red);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    box-shadow: 0 0 20px var(--red-glow);
+  }
+
+  .logo-text { font-weight: 700; font-size: 0.95rem; }
+  .logo-text span { color: var(--red); }
+  .logo-sub { font-size: 0.75rem; color: var(--muted2); font-weight: 400; }
+
+  .header-right { display: flex; align-items: center; gap: 12px; }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    background: var(--success);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+    box-shadow: 0 0 8px var(--success);
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.6; transform: scale(0.85); }
+  }
+
+  .badge {
+    background: var(--card2);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--muted2);
+  }
+
+  /* ── HERO ────────────────────────────────────────────────────────────── */
+  .hero {
+    padding: 80px 32px 48px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -60px; left: 50%; transform: translateX(-50%);
+    width: 600px; height: 300px;
+    background: radial-gradient(ellipse, var(--red-glow) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    margin-bottom: 16px;
+  }
+
+  .hero h1 .accent { color: var(--red); }
+
+  .hero p {
+    font-size: 1.1rem;
+    color: var(--muted2);
+    max-width: 520px;
+    margin: 0 auto 32px;
+    line-height: 1.7;
+  }
+
+  .pill-group { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 99px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border: 1px solid;
+  }
+
+  .pill-red    { background: rgba(229,57,53,.1); border-color: rgba(229,57,53,.3); color: #ef9a9a; }
+  .pill-green  { background: rgba(34,197,94,.1); border-color: rgba(34,197,94,.3); color: #86efac; }
+  .pill-blue   { background: rgba(96,165,250,.1); border-color: rgba(96,165,250,.3); color: #93c5fd; }
+  .pill-purple { background: rgba(168,85,247,.1); border-color: rgba(168,85,247,.3); color: #d8b4fe; }
+
+  /* ── MAIN LAYOUT ─────────────────────────────────────────────────────── */
+  main {
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+    display: grid;
+    gap: 24px;
+  }
+
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .grid-sidebar { display: grid; grid-template-columns: 1fr 360px; gap: 24px; }
+
+  @media (max-width: 1100px) { .grid-sidebar { grid-template-columns: 1fr; } }
+  @media (max-width: 900px)  { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  /* ── CARDS ───────────────────────────────────────────────────────────── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .card:hover { border-color: var(--border2); }
+  .card-glow:hover { box-shadow: 0 0 40px var(--red-glow); border-color: rgba(229,57,53,.4); }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .card-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted2);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ── STATUS CARDS ────────────────────────────────────────────────────── */
+  .stat-value {
+    font-size: 2.4rem;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-label { font-size: 0.82rem; color: var(--muted); }
+
+  .stat-red    { color: var(--red); }
+  .stat-green  { color: var(--success); }
+  .stat-blue   { color: var(--info); }
+  .stat-purple { color: var(--purple); }
+
+  /* ── BROWSER PREVIEW ─────────────────────────────────────────────────── */
+  .browser-frame {
+    background: #0e0e0e;
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .browser-bar {
+    background: #1a1a1a;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .browser-dots { display: flex; gap: 6px; }
+  .browser-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .dot-red  { background: #ef4444; }
+  .dot-yel  { background: #f59e0b; }
+  .dot-grn  { background: #22c55e; }
+
+  .browser-url {
+    flex: 1;
+    background: #111;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--muted2);
+  }
+
+  .browser-content {
+    padding: 24px;
+    min-height: 220px;
+    background: linear-gradient(135deg, #0f1117 0%, #111827 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .skeleton {
+    background: linear-gradient(90deg, #1a1a1a 25%, #222 50%, #1a1a1a 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 6px;
+  }
+
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* ── PLAN STEPS ──────────────────────────────────────────────────────── */
+  .step-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .step-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: var(--card2);
+    border: 1px solid var(--border);
+    font-size: 0.85rem;
+    transition: all 0.2s;
+  }
+
+  .step-item.active {
+    border-color: rgba(229,57,53,.5);
+    background: rgba(229,57,53,.06);
+    box-shadow: 0 0 16px rgba(229,57,53,.1);
+  }
+
+  .step-item.done {
+    border-color: rgba(34,197,94,.3);
+    background: rgba(34,197,94,.04);
+  }
+
+  .step-item.blocked {
+    border-color: rgba(168,85,247,.3);
+    background: rgba(168,85,247,.04);
+  }
+
+  .step-icon { font-size: 1rem; width: 20px; text-align: center; }
+
+  .step-info { flex: 1; }
+  .step-action { font-weight: 600; color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+  .step-detail { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+
+  .step-status {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 99px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .status-running { background: rgba(229,57,53,.2); color: #ef9a9a; }
+  .status-done    { background: rgba(34,197,94,.15); color: #86efac; }
+  .status-blocked { background: rgba(168,85,247,.15); color: #d8b4fe; }
+  .status-pending { background: rgba(255,255,255,.05); color: var(--muted); }
+
+  /* ── COLLECTED DATA ──────────────────────────────────────────────────── */
+  .data-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .data-item:last-child { border-bottom: none; }
+
+  .data-key {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--info);
+    min-width: 140px;
+    padding-top: 2px;
+  }
+
+  .data-val { font-size: 0.82rem; color: var(--muted2); word-break: break-all; }
+
+  /* ── BLOCKED ACTIONS ─────────────────────────────────────────────────── */
+  .blocked-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(168,85,247,.06);
+    border: 1px solid rgba(168,85,247,.2);
+    margin-bottom: 8px;
+    font-size: 0.82rem;
+    color: var(--muted2);
+  }
+
+  /* ── BUTTONS ─────────────────────────────────────────────────────────── */
+  .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .btn-primary {
+    background: var(--red);
+    color: white;
+    box-shadow: 0 0 24px rgba(229,57,53,.3);
+  }
+  .btn-primary:hover {
+    background: var(--red-dark);
+    box-shadow: 0 0 32px rgba(229,57,53,.5);
+    transform: translateY(-1px);
+  }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border2);
+  }
+  .btn-outline:hover {
+    border-color: var(--red);
+    color: var(--red);
+    transform: translateY(-1px);
+  }
+
+  .btn-ghost {
+    background: var(--card2);
+    color: var(--muted2);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--border2); }
+
+  /* ── LOGS ────────────────────────────────────────────────────────────── */
+  .log-area {
+    background: #080808;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    line-height: 1.8;
+    max-height: 200px;
+    overflow-y: auto;
+    color: var(--muted2);
+  }
+
+  .log-info    { color: #60a5fa; }
+  .log-success { color: #22c55e; }
+  .log-warn    { color: #f59e0b; }
+  .log-error   { color: #ef4444; }
+  .log-checkpoint { color: #a855f7; font-weight: 700; }
+
+  /* ── COMPANY INFO ────────────────────────────────────────────────────── */
+  .company-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .company-item { font-size: 0.82rem; color: var(--muted2); }
+  .company-item strong { color: var(--text); display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; color: var(--muted); }
+
+  /* ── PROGRESS BAR ────────────────────────────────────────────────────── */
+  .progress-wrap { margin-top: 12px; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--muted); margin-bottom: 8px; }
+  .progress-bar { height: 6px; background: var(--card2); border-radius: 99px; overflow: hidden; }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--red), #ff6b6b);
+    border-radius: 99px;
+    transition: width 0.5s ease;
+  }
+
+  /* ── DIVIDER ─────────────────────────────────────────────────────────── */
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* ── FOOTER ──────────────────────────────────────────────────────────── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    line-height: 2;
+  }
+
+  footer strong { color: var(--red); }
+
+  /* ── SCROLLBAR ───────────────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- ══════════ HEADER ══════════ -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🤖</div>
+    <div>
+      <div class="logo-text"><span>Agente</span> Navegador</div>
+      <div class="logo-sub">Balão da Informática Castelo</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-dot"></div>
+    <span style="font-size:0.8rem;color:var(--muted2)">Agente Online</span>
+    <span class="badge">v0.1.0</span>
+  </div>
+</header>
+
+<!-- ══════════ HERO ══════════ -->
+<div class="hero">
+  <h1>Agente <span class="accent">Navegador</span><br>Supervisionado</h1>
+  <p>Assistente local para configuração de integrações oficiais com <strong>Meta Business</strong>, <strong>WhatsApp Cloud API</strong>, <strong>Instagram</strong>, <strong>Facebook</strong> e <strong>TikTok</strong>.</p>
+  <div class="pill-group">
+    <span class="pill pill-red">🔴 Supervisionado</span>
+    <span class="pill pill-green">✅ Playwright</span>
+    <span class="pill pill-blue">⚡ FastAPI</span>
+    <span class="pill pill-purple">🔒 Zero Automação Crítica</span>
+  </div>
+</div>
+
+<!-- ══════════ MAIN ══════════ -->
+<main>
+
+  <!-- STATUS CARDS -->
+  <div class="grid-3">
+    <div class="card card-glow">
+      <div class="card-title">⚡ Status do Agente</div>
+      <div style="margin-top:16px">
+        <div class="stat-value stat-green">ativo</div>
+        <div class="stat-label">Aguardando plano de execução</div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-label"><span>Progresso do plano</span><span>0/9 passos</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🚫 Ações Bloqueadas</div>
+      <div style="margin-top:16px">
+        <div class="stat-value stat-purple">15</div>
+        <div class="stat-label">Categorias de ações críticas monitoradas</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📥 Dados Coletados</div>
+      <div style="margin-top:16px">
+        <div class="stat-value stat-blue">0</div>
+        <div class="stat-label">Aguardando execução do plano</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BROWSER + PLAN STEPS -->
+  <div class="grid-sidebar">
+    <div style="display:flex;flex-direction:column;gap:24px">
+
+      <!-- BROWSER PREVIEW -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🌐 Navegador Supervisionado</div>
+          <div class="badge">Chromium — Headed</div>
+        </div>
+        <div class="browser-frame">
+          <div class="browser-bar">
+            <div class="browser-dots">
+              <div class="browser-dot dot-red"></div>
+              <div class="browser-dot dot-yel"></div>
+              <div class="browser-dot dot-grn"></div>
+            </div>
+            <div class="browser-url">https://business.facebook.com/</div>
+          </div>
+          <div class="browser-content">
+            <div class="skeleton" style="height:48px;width:60%"></div>
+            <div class="skeleton" style="height:24px;width:80%"></div>
+            <div class="skeleton" style="height:24px;width:70%"></div>
+            <div class="skeleton" style="height:120px;width:100%"></div>
+            <div style="display:flex;gap:8px">
+              <div class="skeleton" style="height:36px;flex:1"></div>
+              <div class="skeleton" style="height:36px;flex:1"></div>
+            </div>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-primary" onclick="simulateStart()">▶ Aprovar e Iniciar</button>
+          <button class="btn btn-outline" onclick="simulatePause()">⏸ Pausar Agente</button>
+          <button class="btn btn-ghost" onclick="simulateSave()">💾 Salvar Relatório</button>
+        </div>
+      </div>
+
+      <!-- LOGS -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📜 Log de Execução</div>
+          <span class="badge">Tempo real</span>
+        </div>
+        <div class="log-area" id="logArea">
+          <div class="log-info">[2026-06-26 21:00:01] INFO    | Agente Navegador v0.1.0 iniciado</div>
+          <div class="log-info">[2026-06-26 21:00:01] INFO    | Empresa: Balão da Informática Castelo</div>
+          <div class="log-info">[2026-06-26 21:00:02] INFO    | Carregando plano: meta_whatsapp_setup.yaml</div>
+          <div class="log-success">[2026-06-26 21:00:02] SUCCESS | Plano carregado — 9 passos</div>
+          <div class="log-success">[2026-06-26 21:00:02] SUCCESS | Validação de segurança OK</div>
+          <div class="log-info">[2026-06-26 21:00:03] INFO    | Iniciando Chromium (perfil local)</div>
+          <div class="log-success">[2026-06-26 21:00:04] SUCCESS | Navegador iniciado — modo: headed (visível)</div>
+          <div class="log-info">[2026-06-26 21:00:04] INFO    | Passo 1/9 — goto</div>
+          <div class="log-info">[2026-06-26 21:00:05] INFO    | Navegando para: https://business.facebook.com/</div>
+          <div class="log-checkpoint">[2026-06-26 21:00:06] CHECKPOINT | ⏸ AGUARDANDO OPERADOR HUMANO...</div>
+          <div class="log-warn">[2026-06-26 21:00:06] WAITING | Faça login manualmente na conta Meta Business</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- SIDEBAR -->
+    <div style="display:flex;flex-direction:column;gap:24px">
+
+      <!-- PLANO ATIVO -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📋 Plano Ativo</div>
+          <div class="badge">Meta + WhatsApp</div>
+        </div>
+        <div style="margin-bottom:16px">
+          <div style="font-weight:700;font-size:1rem;margin-bottom:4px">meta_whatsapp_setup</div>
+          <div style="font-size:0.8rem;color:var(--muted2)">Configuração Meta Business + WhatsApp Cloud API</div>
+        </div>
+        <div class="step-list">
+          <div class="step-item done">
+            <span class="step-icon">✅</span>
+            <div class="step-info">
+              <div class="step-action">goto</div>
+              <div class="step-detail">business.facebook.com</div>
+            </div>
+            <span class="step-status status-done">Feito</span>
+          </div>
+          <div class="step-item active">
+            <span class="step-icon">🔵</span>
+            <div class="step-info">
+              <div class="step-action">human_checkpoint</div>
+              <div class="step-detail">Faça login manualmente</div>
+            </div>
+            <span class="step-status status-running">Ativo</span>
+          </div>
+          <div class="step-item">
+            <span class="step-icon">📸</span>
+            <div class="step-info">
+              <div class="step-action">screenshot</div>
+              <div class="step-detail">meta-business-home</div>
+            </div>
+            <span class="step-status status-pending">Pendente</span>
+          </div>
+          <div class="step-item">
+            <span class="step-icon">🌐</span>
+            <div class="step-info">
+              <div class="step-action">goto</div>
+              <div class="step-detail">developers.facebook.com</div>
+            </div>
+            <span class="step-status status-pending">Pendente</span>
+          </div>
+          <div class="step-item blocked">
+            <span class="step-icon">🔒</span>
+            <div class="step-info">
+              <div class="step-action">human_checkpoint</div>
+              <div class="step-detail">Revisar antes de criar app</div>
+            </div>
+            <span class="step-status status-blocked">Checkpoint</span>
+          </div>
+          <div style="text-align:center;padding:8px 0;font-size:0.78rem;color:var(--muted)">
+            + 4 passos adicionais
+          </div>
+        </div>
+      </div>
+
+      <!-- DADOS COLETADOS -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📥 Dados Coletados</div>
+        </div>
+        <div class="data-item">
+          <div class="data-key">meta_business_url</div>
+          <div class="data-val">https://business.facebook.com/</div>
+        </div>
+        <div class="data-item">
+          <div class="data-key">meta_developers_url</div>
+          <div class="data-val">—</div>
+        </div>
+        <div class="data-item">
+          <div class="data-key">whatsapp_setup_url</div>
+          <div class="data-val">—</div>
+        </div>
+        <div class="data-item">
+          <div class="data-key">graph_explorer_url</div>
+          <div class="data-val">—</div>
+        </div>
+      </div>
+
+      <!-- EMPRESA -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px">🏢 Empresa</div>
+        <div class="company-grid">
+          <div class="company-item">
+            <strong>Empresa</strong>
+            Balão da Informática Castelo
+          </div>
+          <div class="company-item">
+            <strong>WhatsApp</strong>
+            (19) 98751-0267
+          </div>
+          <div class="company-item">
+            <strong>Endereço</strong>
+            Av. Anchieta, 789 – Campinas/SP
+          </div>
+          <div class="company-item">
+            <strong>Instagram</strong>
+            @balaodainformatica_castelo
+          </div>
+          <div class="company-item">
+            <strong>Site</strong>
+            www.balao.info
+          </div>
+          <div class="company-item">
+            <strong>Telefone</strong>
+            (19) 3255-1661
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- BLOCKED ACTIONS -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🚫 Ações Críticas — Bloqueio Automático</div>
+      <div class="badge">Safety Module</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:8px;margin-top:8px">
+      <div class="blocked-item">🚫 Publicar conteúdo automaticamente</div>
+      <div class="blocked-item">🚫 Enviar mensagem em massa</div>
+      <div class="blocked-item">🚫 Conectar número WhatsApp real</div>
+      <div class="blocked-item">🚫 Adicionar forma de pagamento</div>
+      <div class="blocked-item">🚫 Remover usuário ou admin</div>
+      <div class="blocked-item">🚫 Excluir app / página / conta</div>
+      <div class="blocked-item">🚫 Aceitar termos automaticamente</div>
+      <div class="blocked-item">🚫 Enviar app para revisão</div>
+      <div class="blocked-item">🚫 Ativar campanha publicitária</div>
+      <div class="blocked-item">🚫 Alterar senha da conta</div>
+      <div class="blocked-item">🚫 Gerar token permanente</div>
+      <div class="blocked-item">🚫 Copiar código 2FA</div>
+      <div class="blocked-item">🚫 Baixar dados privados</div>
+      <div class="blocked-item">🚫 Disparo em massa / spam</div>
+      <div class="blocked-item">🚫 Burlar autenticação</div>
+    </div>
+  </div>
+
+  <!-- PLANS GRID -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:16px">📋 Planos Disponíveis</div>
+      <div class="step-list">
+        <div class="step-item active">
+          <span class="step-icon">🔴</span>
+          <div class="step-info">
+            <div class="step-action">meta_whatsapp_setup.yaml</div>
+            <div class="step-detail">Meta Business + WhatsApp Cloud API</div>
+          </div>
+        </div>
+        <div class="step-item">
+          <span class="step-icon">📸</span>
+          <div class="step-info">
+            <div class="step-action">instagram_setup.yaml</div>
+            <div class="step-detail">Instagram Profissional + Graph API</div>
+          </div>
+        </div>
+        <div class="step-item">
+          <span class="step-icon">👍</span>
+          <div class="step-info">
+            <div class="step-action">facebook_page_setup.yaml</div>
+            <div class="step-detail">Página do Facebook + Page ID</div>
+          </div>
+        </div>
+        <div class="step-item">
+          <span class="step-icon">🎵</span>
+          <div class="step-info">
+            <div class="step-action">tiktok_developers_setup.yaml</div>
+            <div class="step-detail">TikTok Developers + Content Posting API</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="margin-bottom:16px">💻 Comandos CLI</div>
+      <div class="log-area" style="max-height:none;height:auto">
+        <div class="log-info"># Executar plano</div>
+        <div style="color:#f0f0f0">python -m agente_navegador.cli run \</div>
+        <div style="color:#f0f0f0">  plans/meta_whatsapp_setup.yaml --headed</div>
+        <br>
+        <div class="log-info"># Validar plano</div>
+        <div style="color:#f0f0f0">python -m agente_navegador.cli validate \</div>
+        <div style="color:#f0f0f0">  plans/instagram_setup.yaml</div>
+        <br>
+        <div class="log-info"># Listar planos</div>
+        <div style="color:#f0f0f0">python -m agente_navegador.cli list-plans</div>
+        <br>
+        <div class="log-info"># Iniciar servidor local</div>
+        <div style="color:#f0f0f0">python -m agente_navegador.server</div>
+        <br>
+        <div class="log-info"># Rodar testes</div>
+        <div style="color:#f0f0f0">pytest -v</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ══════════ FOOTER ══════════ -->
+<footer>
+  <strong>Agente Navegador Supervisionado</strong> v0.1.0<br>
+  Balão da Informática Castelo — Av. Anchieta, 789 – Campinas/SP<br>
+  (19) 98751-0267 | (19) 3255-1661 | www.balao.info | @balaodainformatica_castelo<br>
+  <span style="color:var(--border2)">─────────────────────────────────────────</span><br>
+  Este agente opera sob supervisão humana total. Nenhuma ação crítica é automatizada.
+</footer>
+
+<script>
+  // Simulação de interatividade para o preview
+  let running = false;
+  let progress = 0;
+
+  function simulateStart() {
+    if (running) return;
+    running = true;
+    progress = 0;
+    addLog('INFO', 'Iniciando execução do plano...');
+    addLog('INFO', 'Abrindo Chromium...');
+    const fill = document.querySelector('.progress-fill');
+    const interval = setInterval(() => {
+      progress += Math.random() * 15;
+      if (progress >= 100) {
+        progress = 100;
+        clearInterval(interval);
+        running = false;
+        addLog('SUCCESS', '✅ Plano concluído com sucesso!');
+      }
+      fill.style.width = Math.min(progress, 100) + '%';
+      document.querySelector('.progress-label span:last-child').textContent =
+        Math.round(progress / 100 * 9) + '/9 passos';
+    }, 600);
+    addLog('CHECKPOINT', '⏸ AGUARDANDO OPERADOR HUMANO...');
+  }
+
+  function simulatePause() {
+    running = false;
+    addLog('WARN', 'Agente pausado pelo operador.');
+  }
+
+  function simulateSave() {
+    addLog('SUCCESS', '💾 Relatório salvo em logs/relatorio_' + Date.now() + '.log');
+  }
+
+  function addLog(type, msg) {
+    const area = document.getElementById('logArea');
+    const ts = new Date().toLocaleTimeString('pt-BR', {hour12: false});
+    const cls = { INFO: 'log-info', SUCCESS: 'log-success', WARN: 'log-warn', ERROR: 'log-error', CHECKPOINT: 'log-checkpoint' }[type] || 'log-info';
+    const div = document.createElement('div');
+    div.className = cls;
+    div.textContent = `[${ts}] ${type.padEnd(8)} | ${msg}`;
+    area.appendChild(div);
+    area.scrollTop = area.scrollHeight;
+  }
+</script>
+</body>
+</html>

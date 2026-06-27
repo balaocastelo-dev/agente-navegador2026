@@ -7,7 +7,6 @@ Iniciar:
 """
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -26,8 +25,8 @@ from agente_navegador.models import AgentStatus, RunResult
 log = get_logger(__name__)
 
 app = FastAPI(
-    title="Agente Navegador — Balão da Informática Castelo",
-    description="Agente navegador supervisionado para integrações Meta/WhatsApp/Instagram/Facebook/TikTok",
+    title="Agente Navegador - Balao da Informatica Castelo",
+    description="Agente navegador supervisionado para integracoes Meta/WhatsApp/Instagram/Facebook/TikTok",
     version=__version__,
 )
 
@@ -42,14 +41,62 @@ _state: Dict[str, Any] = {
 
 
 # ---------------------------------------------------------------------------
-# HTML da interface local
+# HTML da interface local — usa substituicao simples (sem .format() para evitar
+# conflito com chaves do CSS)
 # ---------------------------------------------------------------------------
-_HTML_INTERFACE = """<!DOCTYPE html>
+
+def _build_html() -> str:
+    """Gera o HTML do painel, substituindo placeholders manualmente."""
+
+    plans = list_plans()
+    plans_items = "".join(
+        f'<li><strong>{p.name}</strong> <span class="badge-small">{p.stat().st_size}b</span></li>'
+        for p in plans
+    ) or "<li>Nenhum plano encontrado</li>"
+
+    status_obj = _state["status"]
+    status_str = status_obj.value if hasattr(status_obj, "value") else str(status_obj)
+    status_map = {
+        "idle": ("idle", "Aguardando"),
+        "running": ("running", "Executando"),
+        "waiting_human": ("waiting", "Aguardando Operador"),
+        "paused": ("waiting", "Pausado"),
+        "finished": ("finished", "Concluido"),
+        "error": ("error", "Erro"),
+        "blocked": ("blocked", "Bloqueado"),
+    }
+    status_class, status_label = status_map.get(status_str, ("idle", status_str))
+
+    blocked = _state.get("blocked_actions", [])
+    blocked_html = "".join(f"<li>{b}</li>" for b in blocked) or "<li>Nenhuma acao bloqueada</li>"
+
+    collected = _state.get("collected_data", [])
+    collected_html = (
+        "".join(f'<li><strong>{c["key"]}:</strong> {c["value"]}</li>' for c in collected)
+        or "<li>Nenhum dado coletado ainda</li>"
+    )
+
+    current_plan = _state.get("current_plan") or "&#8212;"
+
+    html = _HTML_TEMPLATE
+    html = html.replace("%%VERSION%%", __version__)
+    html = html.replace("%%STATUS%%", status_label)
+    html = html.replace("%%STATUS_CLASS%%", status_class)
+    html = html.replace("%%CURRENT_PLAN%%", current_plan)
+    html = html.replace("%%COLLECTED_COUNT%%", str(len(collected)))
+    html = html.replace("%%BLOCKED_COUNT%%", str(len(blocked)))
+    html = html.replace("%%PLANS_ITEMS%%", plans_items)
+    html = html.replace("%%BLOCKED_HTML%%", blocked_html)
+    html = html.replace("%%COLLECTED_HTML%%", collected_html)
+    return html
+
+
+_HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agente Navegador — Balão da Informática Castelo</title>
+<title>Agente Navegador - Balao da Informatica Castelo</title>
 <style>
   :root {
     --red: #e53935;
@@ -63,13 +110,13 @@ _HTML_INTERFACE = """<!DOCTYPE html>
   body { background: var(--dark); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
   header { background: #111; border-bottom: 2px solid var(--red); padding: 16px 32px; display: flex; align-items: center; gap: 16px; }
   header h1 { font-size: 1.2rem; color: var(--red); font-weight: 700; }
-  header span { color: var(--muted); font-size: 0.85rem; }
-  .badge { background: var(--red); color: white; padding: 2px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; }
+  header span.sub { color: var(--muted); font-size: 0.85rem; }
+  .badge { background: var(--red); color: white; padding: 3px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; }
+  .badge-small { background: #2a2a2a; color: var(--muted); padding: 1px 6px; border-radius: 4px; font-size: 0.72rem; }
   main { max-width: 1100px; margin: 0 auto; padding: 32px 16px; display: grid; gap: 24px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-  @media(max-width:700px){ .grid2{ grid-template-columns:1fr; } }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
-  .card h2 { font-size: 1rem; color: var(--red); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .card h2 { font-size: 1rem; color: var(--red); margin-bottom: 16px; }
   .status-pill { display: inline-block; padding: 4px 14px; border-radius: 99px; font-size: 0.8rem; font-weight: 600; }
   .status-idle { background: #333; color: #aaa; }
   .status-running { background: #1a472a; color: #4ade80; }
@@ -81,7 +128,7 @@ _HTML_INTERFACE = """<!DOCTYPE html>
   ul li { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; color: var(--muted); }
   ul li:last-child { border-bottom: none; }
   ul li strong { color: var(--text); }
-  .btn { display: inline-block; padding: 10px 24px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; border: none; transition: all 0.2s; }
+  .btn { display: inline-block; padding: 10px 24px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; border: none; transition: all 0.2s; text-decoration: none; font-family: inherit; }
   .btn-red { background: var(--red); color: white; }
   .btn-red:hover { background: #c62828; }
   .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
@@ -94,125 +141,98 @@ _HTML_INTERFACE = """<!DOCTYPE html>
 <body>
 <header>
   <div>
-    <h1>🤖 Agente Navegador Supervisionado</h1>
-    <span>Balão da Informática Castelo — Campinas/SP</span>
+    <h1>Agente Navegador Supervisionado</h1>
+    <span class="sub">Balao da Informatica Castelo &mdash; Campinas/SP</span>
   </div>
-  <span class="badge">v{version}</span>
+  <span class="badge">v%%VERSION%%</span>
 </header>
 <main>
   <div class="grid2">
     <div class="card">
-      <h2>📡 Status do Agente</h2>
-      <p>Status atual: <span class="status-pill status-{status_class}">{status}</span></p>
+      <h2>Status do Agente</h2>
+      <p>Status: <span class="status-pill status-%%STATUS_CLASS%%">%%STATUS%%</span></p>
       <ul style="margin-top:16px">
-        <li><strong>Plano ativo:</strong> {current_plan}</li>
-        <li><strong>Dados coletados:</strong> {collected_count}</li>
-        <li><strong>Ações bloqueadas:</strong> {blocked_count}</li>
+        <li><strong>Plano ativo:</strong> %%CURRENT_PLAN%%</li>
+        <li><strong>Dados coletados:</strong> %%COLLECTED_COUNT%%</li>
+        <li><strong>Acoes bloqueadas:</strong> %%BLOCKED_COUNT%%</li>
       </ul>
     </div>
     <div class="card">
-      <h2>🔗 API Endpoints</h2>
+      <h2>API Endpoints</h2>
       <ul>
-        <li><span class="endpoint">GET /health</span> — Status do servidor</li>
-        <li><span class="endpoint">GET /plans</span> — Lista planos</li>
-        <li><span class="endpoint">POST /run-plan</span> — Inicia execução</li>
-        <li><span class="endpoint">GET /logs</span> — Lista logs</li>
-        <li><span class="endpoint">GET /screenshots</span> — Lista screenshots</li>
-        <li><span class="endpoint">GET /docs</span> — Swagger UI</li>
+        <li><span class="endpoint">GET /health</span> &mdash; Status do servidor</li>
+        <li><span class="endpoint">GET /plans</span> &mdash; Lista planos</li>
+        <li><span class="endpoint">POST /run-plan</span> &mdash; Inicia execucao</li>
+        <li><span class="endpoint">GET /logs</span> &mdash; Lista logs</li>
+        <li><span class="endpoint">GET /screenshots</span> &mdash; Lista screenshots</li>
+        <li><span class="endpoint">GET /docs</span> &mdash; Swagger UI (FastAPI)</li>
       </ul>
     </div>
   </div>
 
   <div class="card">
-    <h2>📋 Planos Disponíveis</h2>
-    <ul>
-      {plans_html}
-    </ul>
+    <h2>Planos Disponiveis</h2>
+    <ul>%%PLANS_ITEMS%%</ul>
     <div class="btn-group">
       <a href="/plans" class="btn btn-outline">Ver JSON</a>
-      <a href="/docs" class="btn btn-red">📖 API Docs</a>
+      <a href="/docs" class="btn btn-red">API Docs (Swagger)</a>
     </div>
   </div>
 
   <div class="grid2">
     <div class="card">
-      <h2>🚫 Ações Críticas Bloqueadas</h2>
-      <ul>
-        {blocked_html}
-      </ul>
+      <h2>Acoes Bloqueadas</h2>
+      <ul>%%BLOCKED_HTML%%</ul>
     </div>
     <div class="card">
-      <h2>📥 Dados Coletados</h2>
-      <ul>
-        {collected_html}
-      </ul>
+      <h2>Dados Coletados</h2>
+      <ul>%%COLLECTED_HTML%%</ul>
     </div>
   </div>
 
   <div class="card">
-    <h2>⚙️ Controles (via API)</h2>
-    <p style="color:var(--muted); font-size:0.9rem; margin-bottom:16px">
+    <h2>Controles</h2>
+    <p style="color:var(--muted);font-size:0.9rem;margin-bottom:16px">
       Use a <a href="/docs" style="color:var(--red)">API REST (/docs)</a> ou a CLI para controlar o agente.
-      Ações críticas sempre exigem confirmação humana no terminal.
+      Acoes criticas sempre exigem confirmacao humana no terminal.
+    </p>
+    <p style="color:var(--muted);font-size:0.85rem;background:#111;padding:12px;border-radius:8px;font-family:monospace">
+      # Executar plano (no terminal):<br>
+      $env:PYTHONIOENCODING="utf-8"<br>
+      python -m agente_navegador.cli run plans/meta_whatsapp_setup.yaml --headed
     </p>
     <div class="btn-group">
-      <button class="btn btn-red" onclick="runPlan()">▶ Iniciar Plano</button>
-      <button class="btn btn-outline" onclick="location.reload()">🔄 Atualizar Status</button>
-      <a href="/logs" class="btn btn-outline">📜 Ver Logs</a>
-      <a href="/screenshots" class="btn btn-outline">📸 Screenshots</a>
+      <button class="btn btn-red" onclick="runPlan()">Iniciar Plano via API</button>
+      <button class="btn btn-outline" onclick="location.reload()">Atualizar Status</button>
+      <a href="/logs" class="btn btn-outline">Ver Logs</a>
+      <a href="/screenshots" class="btn btn-outline">Screenshots</a>
     </div>
   </div>
 </main>
 <footer>
-  Agente Navegador v{version} — Balão da Informática Castelo<br>
-  Av. Anchieta, 789 – Campinas/SP | (19) 98751-0267 | www.balao.info
+  Agente Navegador v%%VERSION%% &mdash; Balao da Informatica Castelo<br>
+  Av. Anchieta, 789 &ndash; Campinas/SP | (19) 98751-0267 | www.balao.info
 </footer>
 <script>
 async function runPlan() {
   const name = prompt('Nome do plano (ex: meta_whatsapp_setup):');
   if (!name) return;
-  const r = await fetch('/run-plan', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({plan_name: name, headed: true})
-  });
-  const d = await r.json();
-  alert(JSON.stringify(d, null, 2));
+  try {
+    const r = await fetch('/run-plan', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({plan_name: name, headed: true})
+    });
+    const d = await r.json();
+    alert(JSON.stringify(d, null, 2));
+    setTimeout(() => location.reload(), 1000);
+  } catch(e) {
+    alert('Erro: ' + e.message);
+  }
 }
 </script>
 </body>
 </html>"""
-
-
-def _build_html() -> str:
-    plans = list_plans()
-    plans_html = "".join(f"<li><strong>{p.name}</strong></li>" for p in plans) or "<li>Nenhum plano encontrado</li>"
-
-    status = _state["status"]
-    status_str = status.value if hasattr(status, "value") else str(status)
-    status_class_map = {
-        "idle": "idle", "running": "running", "waiting_human": "waiting",
-        "finished": "finished", "error": "error", "blocked": "blocked", "paused": "waiting",
-    }
-    status_class = status_class_map.get(status_str, "idle")
-
-    blocked = _state.get("blocked_actions", [])
-    blocked_html = "".join(f"<li>{b}</li>" for b in blocked) or "<li>Nenhuma ação bloqueada</li>"
-
-    collected = _state.get("collected_data", [])
-    collected_html = "".join(f"<li><strong>{c['key']}:</strong> {c['value']}</li>" for c in collected) or "<li>Nenhum dado coletado ainda</li>"
-
-    return _HTML_INTERFACE.format(
-        version=__version__,
-        status=status_str,
-        status_class=status_class,
-        current_plan=_state.get("current_plan") or "—",
-        collected_count=len(collected),
-        blocked_count=len(blocked),
-        plans_html=plans_html,
-        blocked_html=blocked_html,
-        collected_html=collected_html,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +259,7 @@ async def health():
 
 @app.get("/plans", tags=["Planos"])
 async def get_plans():
-    """Lista todos os planos YAML disponíveis."""
+    """Lista todos os planos YAML disponiveis."""
     plans = list_plans()
     return {
         "plans": [
@@ -261,15 +281,15 @@ class RunPlanRequest(BaseModel):
 @app.post("/run-plan", tags=["Planos"])
 async def run_plan_endpoint(request: RunPlanRequest, background_tasks: BackgroundTasks):
     """
-    Inicia a execução de um plano em background.
-    NOTA: Para planos com human_checkpoint, use a CLI para interação completa.
+    Inicia a execucao de um plano em background.
+    NOTA: Para planos com human_checkpoint, use a CLI para interacao completa.
     """
     plan_path = config.plans_dir / f"{request.plan_name}.yaml"
     if not plan_path.exists():
         plan_path = config.plans_dir / f"{request.plan_name}.yml"
 
     if not plan_path.exists():
-        raise HTTPException(status_code=404, detail=f"Plano '{request.plan_name}' não encontrado.")
+        raise HTTPException(status_code=404, detail=f"Plano '{request.plan_name}' nao encontrado.")
 
     valid, errors = validate_plan(plan_path)
     if not valid:
@@ -303,7 +323,7 @@ async def run_plan_endpoint(request: RunPlanRequest, background_tasks: Backgroun
 
 @app.get("/logs", tags=["Sistema"])
 async def get_logs():
-    """Lista os arquivos de log disponíveis."""
+    """Lista os arquivos de log disponiveis."""
     log_files = sorted(config.log_dir.glob("*.log"), reverse=True)
     return {
         "logs": [

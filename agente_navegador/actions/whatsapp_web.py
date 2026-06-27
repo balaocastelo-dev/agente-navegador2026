@@ -291,29 +291,31 @@ async def run_auto_reply_loop(
     global _selected_chat_name
     page = await brw.get_page()
     replied_count = 0
+    active_chat_title: str | None = None
+    last_processed_msg_id: str | None = None
     
-    log_agent(f"Iniciando loop de auto-resposta de vendas (Max ciclos: {max_cycles}, Delay: {cycle_delay_sec}s)")
+    log_agent(f"Iniciando loop de auto-resposta inteligente (Max ciclos: {max_cycles}, Delay: {cycle_delay_sec}s)")
     
     for cycle in range(max_cycles):
-        # Se o operador selecionou um contato no painel, foca nele primeiro
+        # Se o operador selecionou um contato no painel, foca nele
         if _selected_chat_name:
             chat_name = _selected_chat_name
             log.info(f"Processando contato selecionado via painel: {chat_name}")
-            # Reseta a selecao apos abrir para nao ficar travado clicando
             _selected_chat_name = None
             await select_chat_by_name(chat_name)
             await asyncio.sleep(1.5)
+            active_chat_title = chat_name
+            last_processed_msg_id = None # Força a leitura/resposta no novo chat
             
         log.info(f"Ciclo {cycle + 1}/{max_cycles} - Verificando novas mensagens...")
         
-        # Encontra chats nao lidos
+        # 1. Encontra novos chats não lidos no menu lateral
         unread_chats = page.locator(f"xpath={UNREAD_CHAT_XPATH}")
         count = await unread_chats.count()
         
+        new_chat_opened = False
         if count > 0:
-            log.info(f"Encontrado(s) {count} chat(s) com mensagens nao lidas.")
             chat = unread_chats.first
-            
             chat_title = "Contato Desconhecido"
             try:
                 title_el = chat.locator("span[title], [data-testid='chat-title']")
@@ -322,58 +324,83 @@ async def run_auto_reply_loop(
             except Exception as e:
                 log.debug(f"Nao foi possivel ler o nome do contato: {e}")
                 
-            log_agent(f"Abrindo chat de: '{chat_title}'")
-            await chat.click()
-            await asyncio.sleep(1.5)
+            # Se for um contato diferente do ativo (ou se nenhum chat estiver aberto), foca nele
+            if chat_title != active_chat_title or not active_chat_title:
+                log_agent(f"Novo chat nao lido detectado de: '{chat_title}'. Abrindo...")
+                await chat.click()
+                await asyncio.sleep(1.5)
+                active_chat_title = chat_title
+                last_processed_msg_id = None
+                new_chat_opened = True
+
+        # 2. Se temos um chat ativo focado, monitoramos novas mensagens nele
+        if active_chat_title:
+            incoming_msgs = page.locator(LAST_INCOMING_MESSAGE)
+            incoming_count = await incoming_msgs.count()
             
-            # Tenta capturar a ultima mensagem recebida
-            last_msg_text = ""
-            try:
-                incoming_msgs = page.locator(LAST_INCOMING_MESSAGE)
-                if await incoming_msgs.count() > 0:
-                    last_msg = incoming_msgs.last
+            if incoming_count > 0:
+                last_msg = incoming_msgs.last
+                
+                # Obtém o data-id do Playwright como identificador único da mensagem
+                msg_id = await last_msg.get_attribute("data-id")
+                
+                # Extrai o texto da mensagem do cliente
+                last_msg_text = ""
+                try:
                     text_el = last_msg.locator(MESSAGE_TEXT_SELECTOR)
                     if await text_el.count() > 0:
                         last_msg_text = await text_el.first.inner_text()
-            except Exception as e:
-                log.debug(f"Nao foi possivel ler a ultima mensagem: {e}")
+                except Exception as e:
+                    log.debug(f"Nao foi possivel ler o texto da ultima mensagem: {e}")
                 
-            log.info(f"Mensagem recebida de '{chat_title}': '{last_msg_text}'")
-            
-            # Verifica se e uma pergunta do Supabase ou consulta geral por IA
-            if "supabase" in last_msg_text.lower():
-                await consult_supabase_source(page)
-                reply_text = "Ola! Abri a consulta interna da nossa base de dados Supabase para verificar as informacoes do seu cadastro/pedido. Um momento, por favor!"
+                # Fallback para o texto se o data-id falhar
+                if not msg_id:
+                    msg_id = last_msg_text
+                    
+                # Se for uma mensagem nova do lead
+                if msg_id != last_processed_msg_id:
+                    log.info(f"Nova mensagem em '{active_chat_title}': '{last_msg_text}' (ID: {msg_id})")
+                    
+                    # Processa a resposta
+                    if "supabase" in last_msg_text.lower():
+                        await consult_supabase_source(page)
+                        reply_text = "Ola! Abri a consulta interna da nossa base de dados Supabase para verificar as informacoes do seu cadastro/pedido. Um momento, por favor!"
+                    else:
+                        reply_text = await generate_smart_response(last_msg_text)
+                        
+                    # Confirmação / Envio
+                    should_send = True
+                    if require_confirmation:
+                        should_send = confirm_critical_action(
+                            f"Responder para '{active_chat_title}' com:\n\n{reply_text}"
+                        )
+                        
+                    if should_send:
+                        await page.wait_for_selector(INPUT_TEXTBOX, timeout=5000)
+                        input_field = page.locator(INPUT_TEXTBOX).first
+                        await input_field.click()
+                        await asyncio.sleep(0.5)
+                        
+                        log.info(f"Digitando resposta para {active_chat_title}...")
+                        await input_field.type(reply_text, delay=35)
+                        await asyncio.sleep(0.5)
+                        await page.keyboard.press("Enter")
+                        log_success(f"Resposta enviada para '{active_chat_title}'!")
+                        replied_count += 1
+                    else:
+                        log.warning(f"Resposta para '{active_chat_title}' recusada pelo operador.")
+                    
+                    # Atualiza o ID da última mensagem processada
+                    last_processed_msg_id = msg_id
+                else:
+                    if not new_chat_opened:
+                        log.info(f"Aguardando novas mensagens no chat ativo com '{active_chat_title}'...")
             else:
-                reply_text = await generate_smart_response(last_msg_text)
-
-            # Envia resposta
-            should_send = True
-            if require_confirmation:
-                should_send = confirm_critical_action(
-                    f"Responder para '{chat_title}' com:\n\n{reply_text}"
-                )
-                
-            if should_send:
-                await page.wait_for_selector(INPUT_TEXTBOX, timeout=5000)
-                input_field = page.locator(INPUT_TEXTBOX).first
-                await input_field.click()
-                await asyncio.sleep(0.5)
-                
-                log.info(f"Digitando resposta para {chat_title}...")
-                await input_field.type(reply_text, delay=35)
-                await asyncio.sleep(0.5)
-                await page.keyboard.press("Enter")
-                log_success(f"Resposta enviada para '{chat_title}'!")
-                replied_count += 1
-            else:
-                log.warning(f"Resposta para '{chat_title}' recusada pelo operador.")
-                
-            await asyncio.sleep(2)
+                log.info(f"Nenhuma mensagem recebida encontrada no chat de '{active_chat_title}'.")
         else:
-            log.info("Nenhuma nova mensagem encontrada.")
+            log.info("Nenhuma nova mensagem nos chats do menu lateral.")
             
         await asyncio.sleep(cycle_delay_sec)
         
-    log_agent(f"Loop de auto-resposta concluido. Total respondido: {replied_count}")
+    log_agent(f"Loop de auto-resposta inteligente concluido. Total respondido: {replied_count}")
     return replied_count

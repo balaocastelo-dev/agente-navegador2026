@@ -3,12 +3,24 @@ Modulo de integracao com o Gemini para respostas inteligentes e personalizadas.
 """
 from __future__ import annotations
 
+from datetime import datetime
 import google.generativeai as genai
 from agente_navegador.config import config
 from agente_navegador.logger import get_logger
 from agente_navegador.actions.balao_search import search_balao_products
 
 log = get_logger(__name__)
+
+
+def get_time_greeting() -> str:
+    """Retorna bom dia, boa tarde ou boa noite de acordo com a hora local do sistema."""
+    hour = datetime.now().hour
+    if 5 <= hour < 12:
+        return "bom dia"
+    elif 12 <= hour < 18:
+        return "boa tarde"
+    else:
+        return "boa noite"
 
 # Configura a API se a chave estiver presente
 if config.gemini_api_key:
@@ -76,7 +88,9 @@ async def generate_smart_response(user_message: str) -> str:
             products = await search_balao_products(keyword)
 
         # 3. Gerar a resposta final contextualizada
-        prompt = f"Mensagem do Lead: '{user_message}'\n\n"
+        greeting = get_time_greeting()
+        prompt = f"Cumprimento/Saudação a usar (conforme hora atual do sistema): '{greeting}'. Use-o de forma natural no início se adequado.\n"
+        prompt += f"Mensagem do Lead: '{user_message}'\n\n"
         if products:
             prompt += "Produtos reais e links correspondentes encontrados no nosso site www.balao.info:\n"
             for p in products:
@@ -103,19 +117,20 @@ async def generate_smart_response(user_message: str) -> str:
 def _get_static_fallback(user_message: str) -> str:
     """Gera uma resposta estatica amigavel se a IA falhar ou nao estiver configurada."""
     msg_lower = user_message.lower()
+    greet = get_time_greeting().capitalize()
     
     if "endereco" in msg_lower or "onde fica" in msg_lower or "localizacao" in msg_lower:
         return (
-            "Olá! Fica no Cambuí: Av. Anchieta, 789 – Campinas/SP. "
-            "Nosso site é www.balao.info. Como posso te ajudar hoje?"
+            f"{greet}! Fica no Cambui: Av. Anchieta, 789 – Campinas/SP. "
+            "Nosso site e www.balao.info. Como posso te ajudar hoje?"
         )
     if "contato" in msg_lower or "telefone" in msg_lower or "whatsapp" in msg_lower:
         return (
-            "Olá! Você pode nos contatar no telefone (19) 3255-1661 ou WhatsApp (19) 98751-0267. "
-            "Acesse também nosso site www.balao.info!"
+            f"{greet}! Voce pode nos contatar no telefone (19) 3255-1661 ou WhatsApp (19) 98751-0267. "
+            "Acesse tambem nosso site www.balao.info!"
         )
         
     return (
-        "Olá! Agradecemos seu contato com o Balão da Informática Castelo. "
-        "Recebemos sua mensagem e em breve um de nossos especialistas irá te responder!"
+        f"{greet}! Agradecemos seu contato com o Balao da Informatica Castelo. "
+        "Recebemos sua mensagem e em breve um de nossos especialistas ira te responder!"
     )

@@ -25,8 +25,8 @@ def human_checkpoint(message: str) -> bool:
     console.print(
         Panel(
             f"[bold yellow]{message}[/bold yellow]\n\n"
-            "[dim]Realize a ação manualmente no navegador e confirme para continuar.[/dim]",
-            title="[bold red]⏸  AGUARDANDO SUPERVISOR HUMANO[/bold red]",
+            "[dim]Realize a acao manualmente no navegador e confirme para continuar.[/dim]",
+            title="[bold red]>> AGUARDANDO SUPERVISOR HUMANO[/bold red]",
             border_style="yellow",
             expand=False,
         )
@@ -34,7 +34,7 @@ def human_checkpoint(message: str) -> bool:
 
     try:
         confirmed = Confirm.ask(
-            "\n[bold]✔ Ação concluída? Continuar execução?[/bold]",
+            "\n[bold]Acao concluida? Continuar execucao?[/bold]",
             default=True,
         )
     except (KeyboardInterrupt, EOFError):
@@ -57,11 +57,11 @@ def confirm_critical_action(action_description: str) -> bool:
     """
     console.print(
         Panel(
-            f"[bold red]⚠  AÇÃO CRÍTICA DETECTADA:[/bold red]\n\n"
+            f"[bold red]!! ACAO CRITICA DETECTADA:[/bold red]\n\n"
             f"[bold white]{action_description}[/bold white]\n\n"
-            "[dim]Esta ação pode ter consequências irreversíveis.[/dim]\n"
+            "[dim]Esta acao pode ter consequencias irreversiveis.[/dim]\n"
             "[dim]Revise cuidadosamente antes de confirmar.[/dim]",
-            title="[bold red]🔒 CONFIRMAÇÃO OBRIGATÓRIA[/bold red]",
+            title="[bold red]>> CONFIRMACAO OBRIGATORIA[/bold red]",
             border_style="red",
             expand=False,
         )
@@ -69,7 +69,7 @@ def confirm_critical_action(action_description: str) -> bool:
 
     try:
         confirmed = Confirm.ask(
-            "[bold red]Confirma a execução desta ação crítica?[/bold red]",
+            "[bold red]Confirma a execucao desta acao critica?[/bold red]",
             default=False,
         )
     except (KeyboardInterrupt, EOFError):
@@ -90,6 +90,6 @@ def prompt_user(message: str, default: str = "") -> str:
     Usado quando o plano precisa de um valor fornecido pelo operador.
     """
     try:
-        return Prompt.ask(f"[bold cyan]📝 {message}[/bold cyan]", default=default)
+        return Prompt.ask(f"[bold cyan]>> {message}[/bold cyan]", default=default)
     except (KeyboardInterrupt, EOFError):
         return default

@@ -1,5 +1,5 @@
 """
-Módulo de logging estruturado com Rich.
+Modulo de logging estruturado com Rich.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ _THEME = Theme(
     }
 )
 
-console = Console(theme=_THEME)
+console = Console(theme=_THEME, highlight=False)
 
 
 def get_logger(name: str = "agente_navegador") -> logging.Logger:
@@ -68,22 +68,22 @@ def get_logger(name: str = "agente_navegador") -> logging.Logger:
 
 def log_checkpoint(message: str) -> None:
     """Exibe um checkpoint humano de forma destacada."""
-    console.rule("[checkpoint]🔵 CHECKPOINT HUMANO[/checkpoint]")
+    console.rule("[checkpoint]>> CHECKPOINT HUMANO[/checkpoint]")
     console.print(f"[checkpoint]{message}[/checkpoint]")
     console.rule()
 
 
 def log_blocked(action: str, reason: str) -> None:
-    """Exibe uma ação bloqueada de forma destacada."""
-    console.rule("[error]🚫 AÇÃO BLOQUEADA[/error]")
-    console.print(f"[error]Ação:[/error] {action}")
+    """Exibe uma acao bloqueada de forma destacada."""
+    console.rule("[error]!! ACAO BLOQUEADA[/error]")
+    console.print(f"[error]Acao:[/error] {action}")
     console.print(f"[error]Motivo:[/error] {reason}")
     console.rule()
 
 
 def log_success(message: str) -> None:
-    console.print(f"[success]✅ {message}[/success]")
+    console.print(f"[success]OK: {message}[/success]")
 
 
 def log_agent(message: str) -> None:
-    console.print(f"[agent]🤖 {message}[/agent]")
+    console.print(f"[agent]>> {message}[/agent]")

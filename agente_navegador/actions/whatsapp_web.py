@@ -321,29 +321,29 @@ async def get_message_id(msg_locator) -> str | None:
 async def get_conversation_history(page) -> list[dict]:
     """
     Recupera o histórico recente das últimas 15 mensagens (remetente e texto) da conversa aberta.
-    Identifica o remetente usando o prefixo do data-id do WhatsApp Web:
-    - true_ -> Agente
-    - false_ -> Cliente
+    Identifica o remetente de forma robusta usando data-id, checkmarks de envio e classes de estilo.
     """
     try:
         history = await page.evaluate("""() => {
             const rows = Array.from(document.querySelectorAll('div[data-id]'));
             const results = [];
             for (const row of rows) {
-                const dataId = row.getAttribute('data-id');
-                if (!dataId) continue;
+                const dataId = row.getAttribute('data-id') || '';
                 
                 let sender = null;
-                const classList = row.className || '';
-                if (dataId.startsWith('true_') || classList.includes('message-out')) {
+                const hasCheck = !!row.querySelector('[data-testid="msg-check"], [data-testid="msg-doublecheck"], [data-icon="msg-check"], [data-icon="msg-doublecheck"]');
+                const hasMsgOut = row.classList.contains('message-out') || !!row.querySelector('.message-out') || (row.parentElement && row.parentElement.classList.contains('message-out'));
+                const hasMsgIn = row.classList.contains('message-in') || !!row.querySelector('.message-in') || (row.parentElement && row.parentElement.classList.contains('message-in')) || row.classList.contains('x1cy8zhl') || !!row.querySelector('.x1cy8zhl');
+                
+                if (dataId.startsWith('true_') || hasCheck || hasMsgOut) {
                     sender = 'Agente';
-                } else if (dataId.startsWith('false_') || classList.includes('message-in')) {
+                } else if (dataId.startsWith('false_') || hasMsgIn) {
                     sender = 'Cliente';
                 } else {
                     continue;
                 }
                 
-                const textEl = row.querySelector('.selectable-text, span[data-testid="selectable-text"]');
+                const textEl = row.querySelector('.selectable-text, [data-testid="selectable-text"], .copyable-text span');
                 if (textEl) {
                     results.push({
                         sender: sender,
@@ -519,6 +519,7 @@ async def show_expensive_options(page, chat_title: str, require_confirmation: bo
 
 async def handle_whatsapp_message_flow(page, user_message: str, history: list[dict], require_confirmation: bool, chat_title: str) -> None:
     """Coordena o fluxo inteligente de respostas e paginação de busca."""
+    log.info(f"Histórico completo da conversa para '{chat_title}': {history}")
     session = _chat_sessions.get(chat_title)
     
     if session and "products" in session and session["products"]:

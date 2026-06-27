@@ -4,14 +4,11 @@ version: "1.0"
 steps:
   - action: goto
     url: https://web.whatsapp.com/
-  
-  - action: human_checkpoint
-    message: "Por favor, escaneie o QR Code se necessario e aguarde o carregamento total das conversas."
 
   - action: whatsapp_web_responder
-    value: "Ola! Recebemos sua mensagem no Balao da Informatica Castelo. Em breve um de nossos atendentes entrara em contato com voce. (Auto-reply)"
+    value: "Ola! Sou o assistente virtual de vendas do Balao da Informatica Castelo. (Auto-reply)"
     save_as: total_respondidas
     extra:
-      require_confirmation: true
-      max_cycles: 20
+      require_confirmation: false # Mantenha false para responder automaticamente sem bloquear o terminal do servidor
+      max_cycles: 100
       cycle_delay_sec: 5

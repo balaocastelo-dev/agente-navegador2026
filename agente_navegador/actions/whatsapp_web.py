@@ -3,13 +3,16 @@ Acoes especificas para WhatsApp Web (autenticacao por QR Code).
 
 Este modulo fornece helpers para monitorar novas mensagens e enviar respostas
 automoticas de forma supervisionada, integrando buscas no site oficial
-www.balao.info e consulta direta no Supabase.
+www.balao.info, dados do perfil institucional e consulta direta no Supabase.
 """
 from __future__ import annotations
 
 import asyncio
 import random
+from typing import Any, Dict, List
+
 from agente_navegador import browser as brw
+from agente_navegador.actions.company_profile import get_company_info, scrape_company_info
 from agente_navegador.logger import get_logger, log_agent, log_success
 from agente_navegador.supervisor import confirm_critical_action
 
@@ -35,6 +38,88 @@ UNREAD_CHAT_XPATH = (
 LAST_INCOMING_MESSAGE = "div.message-in"
 MESSAGE_TEXT_SELECTOR = ".selectable-text, span.selectable-text"
 
+# Estado global simples para controle via API
+_selected_chat_name: str | None = None
+
+
+def select_target_chat(chat_name: str | None) -> None:
+    """Define qual contato o operador deseja responder/monitorar."""
+    global _selected_chat_name
+    _selected_chat_name = chat_name
+    log.info(f"Contato selecionado via painel: {chat_name}")
+
+
+async def get_active_chats() -> List[Dict[str, Any]]:
+    """
+    Retorna a lista de chats visiveis no WhatsApp Web para exibicao no painel.
+    """
+    try:
+        page = await brw.get_page()
+        # Garante que a lista de chats esta visivel
+        await page.wait_for_selector(CHAT_LIST_CONTAINER, timeout=5000)
+        
+        chats = await page.evaluate("""
+            () => {
+                const results = [];
+                const rows = document.querySelectorAll('div[role="row"]');
+                rows.forEach((row, index) => {
+                    // Tenta pegar o nome/titulo do contato
+                    const titleEl = row.querySelector('span[title], [data-testid="chat-title"]');
+                    if (!titleEl) return;
+                    const name = titleEl.getAttribute('title') || titleEl.innerText || 'Desconhecido';
+                    
+                    // Tenta pegar a ultima mensagem
+                    const msgEl = row.querySelector('span[data-testid="last-message"], [data-testid="last-msg-status"] + span');
+                    const lastMessage = msgEl ? msgEl.innerText.trim() : '';
+                    
+                    // Verifica se tem nao lida e a contagem
+                    const unreadEl = row.querySelector('[data-testid="icon-unread-count"], [data-testid="unread-count"], span[class*="unread"]');
+                    const unread = !!unreadEl;
+                    const unreadCount = unreadEl ? parseInt(unreadEl.innerText) || 1 : 0;
+                    
+                    results.push({
+                        index,
+                        name,
+                        lastMessage,
+                        unread,
+                        unreadCount
+                    });
+                });
+                return results;
+            }
+        """)
+        return chats
+    except Exception as e:
+        log.debug(f"Nao foi possivel obter chats do WhatsApp Web: {e}")
+        return []
+
+
+async def select_chat_by_name(chat_name: str) -> bool:
+    """
+    Clica no chat com o nome especificado para foca-lo.
+    """
+    try:
+        page = await brw.get_page()
+        # Escapa aspas para o seletor XPath ou texto
+        escaped_name = chat_name.replace('"', '\\"')
+        
+        # Encontra o chat na lista e clica
+        chat_locator = page.locator(
+            f'span[title="{escaped_name}"], [data-testid="chat-title"]:has-text("{chat_name}")'
+        ).first
+        
+        if await chat_locator.count() > 0:
+            await chat_locator.click()
+            await asyncio.sleep(1.5)
+            log_success(f"Chat selecionado: '{chat_name}'")
+            return True
+        else:
+            log.warning(f"Chat '{chat_name}' nao encontrado na lista visivel.")
+            return False
+    except Exception as e:
+        log.error(f"Erro ao selecionar chat '{chat_name}': {e}")
+        return False
+
 
 async def wait_for_whatsapp_web_login(timeout_ms: int = 60000) -> bool:
     """
@@ -45,16 +130,15 @@ async def wait_for_whatsapp_web_login(timeout_ms: int = 60000) -> bool:
     log.info("Aguardando carregamento do WhatsApp Web...")
     
     try:
-        # Tenta esperar pela lista de chats ou pelo QR Code
         await page.wait_for_selector(f"{CHAT_LIST_CONTAINER}, {QR_CODE_CANVAS}", timeout=timeout_ms)
-        
-        # Verifica se o QR Code esta visivel
         qr_visible = await page.locator(QR_CODE_CANVAS).is_visible()
         if qr_visible:
             log.warning("QR Code detectado! Aguardando operador escanear o codigo...")
-            # Aguarda ate a lista de chats aparecer (o login foi concluido)
             await page.wait_for_selector(CHAT_LIST_CONTAINER, timeout=120000)
             log_success("Login realizado com sucesso via QR Code!")
+            
+            # Aproveita o login para raspar info da empresa pela primeira vez
+            await scrape_company_info(page)
             return True
         
         log_success("WhatsApp Web ja estava logado.")
@@ -69,28 +153,22 @@ def extract_search_term(message: str) -> str | None:
     Detecta se o usuario esta perguntando por produtos e extrai o termo de busca.
     """
     msg = message.lower().strip()
-    
-    # Palavras-chave que indicam interesse em comprar/saber preco
     intent_keywords = [
         "preço", "preco", "quanto custa", "valor", "tem", "têm", "disponível", "disponivel",
         "comprar", "gostaria de saber", "qual o preço", "qual o preco", "quanto tá", "quanto ta"
     ]
-    
     is_product_query = any(kw in msg for kw in intent_keywords)
     
-    # Lista de termos de produtos comuns para verificar
     product_keywords = [
         "computador", "pc", "gamer", "notebook", "apple", "iphone", "ipad", "macbook",
         "teclado", "mouse", "monitor", "headset", "fone", "cadeira", "ssd", "hd", "placa",
         "memoria", "ram", "cooler", "fonte", "gabinete", "processador"
     ]
-    
     has_product = any(prod in msg for prod in product_keywords)
     
     if not (is_product_query or has_product):
         return None
 
-    # Limpa a mensagem para tentar pegar apenas o nome do produto
     cleaned = msg
     for phrase in intent_keywords:
         cleaned = cleaned.replace(phrase, "")
@@ -99,16 +177,43 @@ def extract_search_term(message: str) -> str | None:
         
     cleaned = cleaned.strip("? .! \n\t,;*")
     
-    # Se sobrar alguma coisa, usamos como termo de busca. Caso contrario, usamos um padrao.
     if len(cleaned) >= 2:
         return cleaned
     
-    # Fallback inteligente baseado em palavra encontrada
     for prod in product_keywords:
         if prod in msg:
             return prod
             
     return "computador"
+
+
+def get_answer_from_company_profile(message: str) -> str | None:
+    """
+    Tenta responder perguntas institucionais com base nos dados do balao.info.
+    """
+    msg = message.lower().strip()
+    info = get_company_info()
+    
+    address_keys = ["onde fica", "endereço", "endereco", "localização", "localizacao", "onde vcs ficam", "onde voces ficam", "onde fica a loja"]
+    hours_keys = ["horário", "horario", "funciona", "abre", "fecha", "atendimento", "aberto"]
+    contact_keys = ["telefone", "zap", "contato", "whats", "whatsapp", "email", "e-mail", "site"]
+    
+    if any(k in msg for k in address_keys):
+        return f"Nossa loja fica na {info['address']}. Esperamos sua visita! 📍"
+        
+    if any(k in msg for k in hours_keys):
+        return f"Nosso horario de funcionamento é: {info['hours']}. ⏰"
+        
+    if any(k in msg for k in contact_keys):
+        return (
+            f"Voce pode falar conosco pelo telefone {info['phone']} "
+            f"ou pelo WhatsApp {info['whatsapp']}. Nosso email e: {info['email']}. 📞"
+        )
+        
+    if any(k in msg for k in ["quem são", "quem sao", "loja", "sobre"]):
+        return f"Somos o {info['name']}. {info['description']} Nosso endereço e {info['address']}. 🚀"
+        
+    return None
 
 
 async def search_products_on_balao(page, search_term: str) -> list[dict[str, str]]:
@@ -122,7 +227,6 @@ async def search_products_on_balao(page, search_term: str) -> list[dict[str, str
         await new_page.goto(url, wait_until="domcontentloaded")
         await new_page.wait_for_timeout(3000)
         
-        # Extrai links de produtos que possuem /product/ e contem R$
         products = await new_page.evaluate("""
             () => {
                 const results = [];
@@ -132,17 +236,12 @@ async def search_products_on_balao(page, search_term: str) -> list[dict[str, str
                         const text = a.innerText.trim();
                         if (text.includes('R$')) {
                             const lines = text.split('\\n').map(l => l.trim()).filter(l => l.length > 0);
-                            
-                            // Ignora a categoria se estiver na primeira linha em maiusculas
                             let name = lines[0];
                             if (lines.length > 1 && lines[0] === lines[0].toUpperCase() && lines[0].length < 25) {
                                 name = lines[1];
                             }
-                            
-                            // Pega o preco real
                             const priceMatch = text.match(/R\\$\\s*[\\d.,]+/);
                             const price = priceMatch ? priceMatch[0] : "Sob consulta";
-                            
                             if (!results.some(r => r.link === a.href)) {
                                 results.push({
                                     name: name,
@@ -158,7 +257,7 @@ async def search_products_on_balao(page, search_term: str) -> list[dict[str, str
         """)
         await new_page.close()
         log.info(f"Encontrados {len(products)} produtos para '{search_term}'.")
-        return products[:3] # Retorna as 3 melhores ofertas
+        return products[:3]
     except Exception as e:
         log.error(f"Erro ao pesquisar produtos no balao.info: {e}")
         return []
@@ -167,14 +266,12 @@ async def search_products_on_balao(page, search_term: str) -> list[dict[str, str
 async def consult_supabase_source(page) -> None:
     """
     Abre o Supabase em uma nova aba para consulta.
-    Usa o perfil persistente para carregar a sessao existente do usuario.
     """
     log_agent("Navegando para o Supabase (fonte de dados)...")
     try:
         new_page = await page.context.new_page()
         await new_page.goto("https://ptqqvezawobgnheesgvh.supabase.co")
         log_success("Aba do Supabase aberta com sucesso. Se necessario, realize o login.")
-        # Deixa a aba aberta por 10 segundos para carregar e depois mantem ela no contexto
         await new_page.wait_for_timeout(10000)
     except Exception as e:
         log.error(f"Erro ao abrir Supabase: {e}")
@@ -187,18 +284,28 @@ async def run_auto_reply_loop(
     cycle_delay_sec: int = 5
 ) -> int:
     """
-    Executa o loop de verificacao e resposta automatica.
-    Identifica se a mensagem eh de vendas, busca no site balao.info, e responde.
+    Executa o loop de verificacao e resposta automatica de vendas.
+    Suporta selecao de contato via painel de controle global.
     """
+    global _selected_chat_name
     page = await brw.get_page()
     replied_count = 0
     
     log_agent(f"Iniciando loop de auto-resposta de vendas (Max ciclos: {max_cycles}, Delay: {cycle_delay_sec}s)")
     
     for cycle in range(max_cycles):
+        # Se o operador selecionou um contato no painel, foca nele primeiro
+        if _selected_chat_name:
+            chat_name = _selected_chat_name
+            log.info(f"Processando contato selecionado via painel: {chat_name}")
+            # Reseta a selecao apos abrir para nao ficar travado clicando
+            _selected_chat_name = None
+            await select_chat_by_name(chat_name)
+            await asyncio.sleep(1.5)
+            
         log.info(f"Ciclo {cycle + 1}/{max_cycles} - Verificando novas mensagens...")
         
-        # Encontra chats nao lidos usando o XPath robusto
+        # Encontra chats nao lidos
         unread_chats = page.locator(f"xpath={UNREAD_CHAT_XPATH}")
         count = await unread_chats.count()
         
@@ -206,7 +313,6 @@ async def run_auto_reply_loop(
             log.info(f"Encontrado(s) {count} chat(s) com mensagens nao lidas.")
             chat = unread_chats.first
             
-            # Tenta obter o nome do contato/grupo
             chat_title = "Contato Desconhecido"
             try:
                 title_el = chat.locator("span[title], [data-testid='chat-title']")
@@ -219,7 +325,7 @@ async def run_auto_reply_loop(
             await chat.click()
             await asyncio.sleep(1.5)
             
-            # Tenta capturar a ultima mensagem recebida para processar
+            # Tenta capturar a ultima mensagem recebida
             last_msg_text = ""
             try:
                 incoming_msgs = page.locator(LAST_INCOMING_MESSAGE)
@@ -233,19 +339,20 @@ async def run_auto_reply_loop(
                 
             log.info(f"Mensagem recebida de '{chat_title}': '{last_msg_text}'")
             
-            # Verifica se o cliente quer ver o Supabase (para o operador)
-            if "supabase" in last_msg_text.lower():
+            # 1. Verifica se eh uma pergunta sobre a empresa (raspa dados do balao.info)
+            company_answer = get_answer_from_company_profile(last_msg_text)
+            
+            if company_answer:
+                reply_text = company_answer
+            elif "supabase" in last_msg_text.lower():
                 await consult_supabase_source(page)
-                # Responde informando que abriu a consulta interna
                 reply_text = "Ola! Abri a consulta interna da nossa base de dados Supabase para verificar as informacoes do seu cadastro/pedido. Um momento, por favor!"
             else:
-                # Detecta se a mensagem contem uma consulta de produtos
+                # 2. Verifica se eh uma duvida de produtos (vendas)
                 search_term = extract_search_term(last_msg_text)
                 
                 if search_term:
-                    # Busca ofertas reais no site balao.info
                     products = await search_products_on_balao(page, search_term)
-                    
                     if products:
                         reply_text = (
                             f"Ola! Sou o assistente virtual de vendas do Balão da Informática Castelo! 🚀\n\n"
@@ -256,15 +363,14 @@ async def run_auto_reply_loop(
                         reply_text += "Qual dessas opcoes voce gostaria de garantir? Podemos entregar hoje mesmo! 🛍"
                     else:
                         reply_text = (
-                            f"Ola! Sou o assistente virtual de vendas do Balão da Informática Castelo! 🚀\n\n"
+                            f"Ola! Sou o assistente de vendas do Balão da Informática Castelo! 🚀\n\n"
                             f"Nao encontrei ofertas de *{search_term}* no site agora, mas temos muitos itens em estoque! "
                             f"Visite nosso site completo: www.balao.info ou me diga qual outra peca voce procura!"
                         )
                 else:
-                    # Se nao for consulta de produtos, envia o template de boas-vindas padrao
                     reply_text = message_template
 
-            # Verifica se precisa de confirmacao do operador
+            # Envia resposta
             should_send = True
             if require_confirmation:
                 should_send = confirm_critical_action(
@@ -277,11 +383,10 @@ async def run_auto_reply_loop(
                 await input_field.click()
                 await asyncio.sleep(0.5)
                 
-                # Simula digitacao humana com atrasos aleatorios entre os caracteres
                 log.info(f"Digitando resposta para {chat_title}...")
                 for char in reply_text:
                     await input_field.press(char)
-                    await asyncio.sleep(random.uniform(0.02, 0.06))
+                    await asyncio.sleep(random.uniform(0.02, 0.05))
                     
                 await asyncio.sleep(0.5)
                 await page.keyboard.press("Enter")

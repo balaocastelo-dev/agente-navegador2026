@@ -17,6 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from agente_navegador import __version__
+from agente_navegador.actions.whatsapp_web import get_active_chats, select_target_chat
 from agente_navegador.collectors import list_plans, load_plan, validate_plan
 from agente_navegador.config import config
 from agente_navegador.logger import get_logger
@@ -26,7 +27,7 @@ log = get_logger(__name__)
 
 app = FastAPI(
     title="Agente Navegador - Balao da Informatica Castelo",
-    description="Agente navegador supervisionado para integracoes Meta/WhatsApp/Instagram/Facebook/TikTok",
+    description="Agente navegador supervisionado com Painel de Controle de Vendas",
     version=__version__,
 )
 
@@ -96,7 +97,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agente Navegador - Balao da Informatica Castelo</title>
+<title>Painel de Controle - Balao da Informatica Castelo</title>
 <style>
   :root {
     --red: #e53935;
@@ -105,18 +106,20 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     --border: #2a2a2a;
     --text: #f0f0f0;
     --muted: #888;
+    --green: #4ade80;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--dark); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
-  header { background: #111; border-bottom: 2px solid var(--red); padding: 16px 32px; display: flex; align-items: center; gap: 16px; }
+  header { background: #111; border-bottom: 2px solid var(--red); padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
   header h1 { font-size: 1.2rem; color: var(--red); font-weight: 700; }
   header span.sub { color: var(--muted); font-size: 0.85rem; }
   .badge { background: var(--red); color: white; padding: 3px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; }
   .badge-small { background: #2a2a2a; color: var(--muted); padding: 1px 6px; border-radius: 4px; font-size: 0.72rem; }
-  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px; display: grid; gap: 24px; }
+  main { max-width: 1200px; margin: 0 auto; padding: 32px 16px; display: grid; gap: 24px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .grid-panel { display: grid; grid-template-columns: 350px 1fr; gap: 24px; }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
-  .card h2 { font-size: 1rem; color: var(--red); margin-bottom: 16px; }
+  .card h2 { font-size: 1rem; color: var(--red); margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
   .status-pill { display: inline-block; padding: 4px 14px; border-radius: 99px; font-size: 0.8rem; font-weight: 600; }
   .status-idle { background: #333; color: #aaa; }
   .status-running { background: #1a472a; color: #4ade80; }
@@ -128,9 +131,21 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   ul li { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem; color: var(--muted); }
   ul li:last-child { border-bottom: none; }
   ul li strong { color: var(--text); }
-  .btn { display: inline-block; padding: 10px 24px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; border: none; transition: all 0.2s; text-decoration: none; font-family: inherit; }
+  
+  /* Estilo do chat list */
+  .chat-item { padding: 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; background: #151515; }
+  .chat-item:hover { border-color: var(--red); background: #1c1c1c; }
+  .chat-item.unread { border-left: 3px solid var(--green); }
+  .chat-header { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px; }
+  .chat-name { font-weight: bold; color: var(--text); }
+  .chat-badge { background: var(--green); color: black; border-radius: 99px; padding: 1px 6px; font-size: 0.7rem; font-weight: bold; }
+  .chat-msg { font-size: 0.78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .btn { display: inline-block; padding: 10px 24px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; border: none; transition: all 0.2s; text-decoration: none; font-family: inherit; text-align: center; }
   .btn-red { background: var(--red); color: white; }
   .btn-red:hover { background: #c62828; }
+  .btn-green { background: var(--green); color: black; }
+  .btn-green:hover { background: #22c55e; }
   .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
   .btn-outline:hover { border-color: var(--red); color: var(--red); }
   .btn-group { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
@@ -141,8 +156,8 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <body>
 <header>
   <div>
-    <h1>Agente Navegador Supervisionado</h1>
-    <span class="sub">Balao da Informatica Castelo &mdash; Campinas/SP</span>
+    <h1>Balao da Informatica Castelo &mdash; Painel de Controle</h1>
+    <span class="sub">Gestao e auto-resposta supervisionada no WhatsApp Web</span>
   </div>
   <span class="badge">v%%VERSION%%</span>
 </header>
@@ -160,52 +175,62 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="card">
       <h2>API Endpoints</h2>
       <ul>
-        <li><span class="endpoint">GET /health</span> &mdash; Status do servidor</li>
-        <li><span class="endpoint">GET /plans</span> &mdash; Lista planos</li>
-        <li><span class="endpoint">POST /run-plan</span> &mdash; Inicia execucao</li>
-        <li><span class="endpoint">GET /logs</span> &mdash; Lista logs</li>
-        <li><span class="endpoint">GET /screenshots</span> &mdash; Lista screenshots</li>
-        <li><span class="endpoint">GET /docs</span> &mdash; Swagger UI (FastAPI)</li>
+        <li><span class="endpoint">GET /api/whatsapp/chats</span> &mdash; Lista conversas ativas</li>
+        <li><span class="endpoint">POST /api/whatsapp/select-chat</span> &mdash; Foca contato por nome</li>
+        <li><span class="endpoint">POST /run-plan</span> &mdash; Inicia plano de execucao</li>
+        <li><span class="endpoint">GET /docs</span> &mdash; Swagger UI para integracoes</li>
       </ul>
     </div>
   </div>
 
-  <div class="card">
-    <h2>Planos Disponiveis</h2>
-    <ul>%%PLANS_ITEMS%%</ul>
-    <div class="btn-group">
-      <a href="/plans" class="btn btn-outline">Ver JSON</a>
-      <a href="/docs" class="btn btn-red">API Docs (Swagger)</a>
+  <div class="grid-panel">
+    <!-- Lista de Conversas do WhatsApp -->
+    <div class="card" style="max-height: 550px; overflow-y: auto;">
+      <h2>
+        Conversas WhatsApp 
+        <button onclick="refreshChats()" class="badge-small" style="cursor:pointer;border:none">Atualizar</button>
+      </h2>
+      <div id="chats-list">
+        <p style="color:var(--muted);font-size:0.85rem">Nenhum chat carregado. Inicie o agente de auto-resposta primeiro.</p>
+      </div>
+    </div>
+
+    <!-- Controles do Agente e Logs -->
+    <div class="card">
+      <h2>Agente de Vendas Incansavel</h2>
+      <p style="color:var(--muted);font-size:0.9rem;margin-bottom:16px">
+        O agente busca ofertas no site <strong>www.balao.info</strong> e consulta o banco <strong>Supabase</strong> para responder automaticamente os clientes selecionados.
+      </p>
+      
+      <p style="color:var(--muted);font-size:0.85rem;background:#111;padding:12px;border-radius:8px;font-family:monospace;margin-bottom:16px">
+        # Iniciar Auto-Responder via terminal (para scan do QR Code):<br>
+        $env:PYTHONIOENCODING="utf-8"<br>
+        python -m agente_navegador.cli run plans/whatsapp_web_auto_reply.yaml --headed
+      </p>
+
+      <div class="btn-group">
+        <button class="btn btn-red" onclick="startAutoReply()">Iniciar Agente de Vendas via API</button>
+        <button class="btn btn-outline" onclick="location.reload()">Recarregar Painel</button>
+        <a href="/logs" class="btn btn-outline">Ver Logs</a>
+      </div>
+
+      <div style="margin-top: 24px;">
+        <h3>Dados Coletados</h3>
+        <ul style="max-height: 150px; overflow-y: auto;">
+          %%COLLECTED_HTML%%
+        </ul>
+      </div>
     </div>
   </div>
 
   <div class="grid2">
     <div class="card">
-      <h2>Acoes Bloqueadas</h2>
-      <ul>%%BLOCKED_HTML%%</ul>
+      <h2>Planos Disponiveis</h2>
+      <ul>%%PLANS_ITEMS%%</ul>
     </div>
     <div class="card">
-      <h2>Dados Coletados</h2>
-      <ul>%%COLLECTED_HTML%%</ul>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Controles</h2>
-    <p style="color:var(--muted);font-size:0.9rem;margin-bottom:16px">
-      Use a <a href="/docs" style="color:var(--red)">API REST (/docs)</a> ou a CLI para controlar o agente.
-      Acoes criticas sempre exigem confirmacao humana no terminal.
-    </p>
-    <p style="color:var(--muted);font-size:0.85rem;background:#111;padding:12px;border-radius:8px;font-family:monospace">
-      # Executar plano (no terminal):<br>
-      $env:PYTHONIOENCODING="utf-8"<br>
-      python -m agente_navegador.cli run plans/meta_whatsapp_setup.yaml --headed
-    </p>
-    <div class="btn-group">
-      <button class="btn btn-red" onclick="runPlan()">Iniciar Plano via API</button>
-      <button class="btn btn-outline" onclick="location.reload()">Atualizar Status</button>
-      <a href="/logs" class="btn btn-outline">Ver Logs</a>
-      <a href="/screenshots" class="btn btn-outline">Screenshots</a>
+      <h2>Acoes Bloqueadas</h2>
+      <ul>%%BLOCKED_HTML%%</ul>
     </div>
   </div>
 </main>
@@ -213,30 +238,95 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   Agente Navegador v%%VERSION%% &mdash; Balao da Informatica Castelo<br>
   Av. Anchieta, 789 &ndash; Campinas/SP | (19) 98751-0267 | www.balao.info
 </footer>
+
 <script>
-async function runPlan() {
-  const name = prompt('Nome do plano (ex: meta_whatsapp_setup):');
-  if (!name) return;
+// Atualiza a lista de chats a cada 5 segundos se o status for executando
+setInterval(refreshChats, 5000);
+
+async function refreshChats() {
   try {
-    const r = await fetch('/run-plan', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({plan_name: name, headed: true})
-    });
-    const d = await r.json();
-    alert(JSON.stringify(d, null, 2));
-    setTimeout(() => location.reload(), 1000);
-  } catch(e) {
-    alert('Erro: ' + e.message);
+    const res = await fetch('/api/whatsapp/chats');
+    const data = await res.json();
+    const listDiv = document.getElementById('chats-list');
+    
+    if (data.chats && data.chats.length > 0) {
+      listDiv.innerHTML = data.chats.map(c => `
+        <div class="chat-item ${c.unread ? 'unread' : ''}" onclick="selectChat('${c.name}')">
+          <div class="chat-header">
+            <span class="chat-name">${c.name}</span>
+            ${c.unread ? `<span class="chat-badge">${c.unreadCount}</span>` : ''}
+          </div>
+          <div class="chat-msg">${c.lastMessage || '(Sem mensagens)'}</div>
+        </div>
+      `).join('');
+    } else {
+      listDiv.innerHTML = '<p style="color:var(--muted);font-size:0.85rem">Aguardando conexao com WhatsApp Web (Certifique-se de que o plano com headed esta rodando)...</p>';
+    }
+  } catch (e) {
+    console.log('Erro ao atualizar chats:', e);
   }
 }
+
+async function selectChat(name) {
+  try {
+    const res = await fetch('/api/whatsapp/select-chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({chat_name: name})
+    });
+    const data = await res.json();
+    alert('Contato focado no WhatsApp: ' + name);
+  } catch (e) {
+    alert('Erro ao selecionar contato: ' + e.message);
+  }
+}
+
+async function startAutoReply() {
+  try {
+    const res = await fetch('/run-plan', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({plan_name: 'whatsapp_web_auto_reply', headed: true})
+    });
+    const data = await res.json();
+    alert('Agente de Vendas iniciado. Abra o terminal para escanear o QR Code, se necessario.');
+    setTimeout(() => location.reload(), 1000);
+  } catch (e) {
+    alert('Erro ao iniciar: ' + e.message);
+  }
+}
+
+// Executa refresh imediato no carregamento
+refreshChats();
 </script>
 </body>
 </html>"""
 
 
 # ---------------------------------------------------------------------------
-# Rotas
+# Rotas de controle do WhatsApp
+# ---------------------------------------------------------------------------
+
+@app.get("/api/whatsapp/chats", tags=["WhatsApp Control"])
+async def get_chats_endpoint():
+    """Retorna os contatos ativos e nao lidos do WhatsApp Web."""
+    chats = await get_active_chats()
+    return {"chats": chats}
+
+
+class SelectChatRequest(BaseModel):
+    chat_name: str
+
+
+@app.post("/api/whatsapp/select-chat", tags=["WhatsApp Control"])
+async def select_chat_endpoint(request: SelectChatRequest):
+    """Foca e seleciona um contato especifico pelo nome."""
+    select_target_chat(request.chat_name)
+    return {"message": f"Foco definido para contato: '{request.chat_name}'"}
+
+
+# ---------------------------------------------------------------------------
+# Rotas Gerais
 # ---------------------------------------------------------------------------
 
 @app.get("/", response_class=HTMLResponse, tags=["UI"])
@@ -282,7 +372,6 @@ class RunPlanRequest(BaseModel):
 async def run_plan_endpoint(request: RunPlanRequest, background_tasks: BackgroundTasks):
     """
     Inicia a execucao de um plano em background.
-    NOTA: Para planos com human_checkpoint, use a CLI para interacao completa.
     """
     plan_path = config.plans_dir / f"{request.plan_name}.yaml"
     if not plan_path.exists():
@@ -316,7 +405,7 @@ async def run_plan_endpoint(request: RunPlanRequest, background_tasks: Backgroun
 
     return {
         "message": f"Plano '{request.plan_name}' iniciado.",
-        "note": "Para checkpoints humanos interativos, use a CLI: python -m agente_navegador.cli run",
+        "note": "Para checkpoints humanos interativos, use a CLI ou terminal.",
         "status_url": "/health",
     }
 

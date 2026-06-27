@@ -103,12 +103,26 @@ async def generate_smart_response(user_message: str, history: list[dict] | None 
 
         # 3. Gerar a resposta final contextualizada
         greeting = get_time_greeting()
-        prompt = (
-            f"Você é o Agente do Balão da Informática. Responda à última mensagem do Cliente considerando o histórico recente abaixo.\n\n"
-            f"{history_context}"
-            f"Cumprimento/Saudação a usar (conforme hora atual do sistema): '{greeting}'. Use-o de forma natural se for o início da conversa ou se adequado.\n"
-            f"Última mensagem do Cliente: '{user_message}'\n\n"
-        )
+        has_agent_replied = False
+        if history:
+            has_agent_replied = any(msg["sender"] == "Agente" for msg in history)
+            
+        if has_agent_replied:
+            prompt = (
+                f"Você é o Agente do Balão da Informática. A conversa já está em andamento (já houve saudações iniciais). "
+                f"NUNCA use cumprimentos como 'bom dia', 'boa tarde', 'boa noite' ou 'olá' nesta resposta. "
+                f"Responda à última mensagem do Cliente de forma direta, natural, simpática e muito curta/objetiva, sem repetir saudações.\n\n"
+                f"{history_context}"
+                f"Última mensagem do Cliente: '{user_message}'\n\n"
+            )
+        else:
+            prompt = (
+                f"Você é o Agente do Balão da Informática. Esta é a primeira resposta da conversa. "
+                f"Use o cumprimento apropriado '{greeting}' ou 'olá' de forma natural no início se adequado. "
+                f"Responda à última mensagem do Cliente de forma simpática, muito cordial, prestativa e mantendo o texto curto.\n\n"
+                f"{history_context}"
+                f"Última mensagem do Cliente: '{user_message}'\n\n"
+            )
         if products:
             prompt += "Produtos reais e links correspondentes encontrados no nosso site www.balao.info:\n"
             for p in products:
@@ -277,13 +291,24 @@ async def generate_friendly_no_products_response(user_message: str, keyword: str
             history_context += "\n"
             
         greeting = get_time_greeting()
-        prompt = (
-            f"Responda ao cliente explicando educadamente que no momento não encontramos opções de '{keyword}' em estoque no site, "
-            f"mas recomende que ele dê uma olhada no site completo www.balao.info ou pergunte se deseja cotação.\n\n"
-            f"{history_context}"
-            f"Cumprimento a usar (conforme hora do sistema): '{greeting}'\n"
-            f"Última mensagem: {user_message}"
-        )
+        has_agent_replied = any(msg["sender"] == "Agente" for msg in history) if history else False
+        
+        if has_agent_replied:
+            prompt = (
+                f"Responda ao cliente explicando educadamente que no momento não encontramos opções de '{keyword}' em estoque no site. "
+                "Recomende dar uma olhada no site completo www.balao.info ou pergunte se deseja cotação. "
+                "A conversa já está em andamento, então NUNCA use cumprimentos (como olá, bom dia/tarde/noite). Vá direto ao ponto de forma curta e natural.\n\n"
+                f"{history_context}"
+                f"Última mensagem: {user_message}"
+            )
+        else:
+            prompt = (
+                f"Responda ao cliente explicando educadamente que no momento não encontramos opções de '{keyword}' em estoque no site. "
+                "Recomende dar uma olhada no site completo www.balao.info ou pergunte se deseja cotação. "
+                f"Esta é a primeira mensagem, então use o cumprimento '{greeting}' de forma natural no início.\n\n"
+                f"{history_context}"
+                f"Última mensagem: {user_message}"
+            )
         res = await model.generate_content_async(prompt)
         return res.text.strip()
     except Exception:
@@ -308,12 +333,20 @@ async def generate_general_gemini_response(user_message: str, history: list[dict
             history_context += "\n"
             
         greeting = get_time_greeting()
-        prompt = (
-            f"Responda à última mensagem do cliente de forma amigável e profissional, considerando o histórico.\n\n"
-            f"{history_context}"
-            f"Cumprimento a usar (conforme hora do sistema): '{greeting}'\n"
-            f"Última mensagem: {user_message}"
-        )
+        has_agent_replied = any(msg["sender"] == "Agente" for msg in history) if history else False
+        
+        if has_agent_replied:
+            prompt = (
+                "Responda à última mensagem do cliente de forma amigável, muito curta e direta, sem repetir saudações ou cumprimentos (como olá, bom dia/noite), pois a conversa já está em andamento.\n\n"
+                f"{history_context}"
+                f"Última mensagem: {user_message}"
+            )
+        else:
+            prompt = (
+                f"Responda à última mensagem do cliente de forma amigável, cordial e curta. Use a saudação '{greeting}' no início de forma natural.\n\n"
+                f"{history_context}"
+                f"Última mensagem: {user_message}"
+            )
         res = await model.generate_content_async(prompt)
         return res.text.strip()
     except Exception:

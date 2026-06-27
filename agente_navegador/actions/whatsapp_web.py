@@ -334,9 +334,10 @@ async def get_conversation_history(page) -> list[dict]:
                 if (!dataId) continue;
                 
                 let sender = null;
-                if (dataId.startsWith('true_')) {
+                const classList = row.className || '';
+                if (dataId.startsWith('true_') || classList.includes('message-out')) {
                     sender = 'Agente';
-                } else if (dataId.startsWith('false_')) {
+                } else if (dataId.startsWith('false_') || classList.includes('message-in')) {
                     sender = 'Cliente';
                 } else {
                     continue;

@@ -393,8 +393,8 @@ async def send_message_to_chat(page, text: str, delay_before_send_sec: float = 0
             await page.keyboard.press(char)
             await asyncio.sleep(random.uniform(0.01, 0.03))
             
-        # Espera de 3.5 a 4 segundos para carregar o preview
-        wait_time = random.uniform(3.5, 4.0)
+        # Espera um tempo randômico de 7 segundos para carregar o preview
+        wait_time = random.uniform(7.0, 7.5)
         log.info(f"Aguardando {wait_time:.2f}s para o WhatsApp Web carregar o preview do link...")
         await asyncio.sleep(wait_time)
     else:

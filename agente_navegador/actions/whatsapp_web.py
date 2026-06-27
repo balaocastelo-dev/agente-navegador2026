@@ -20,7 +20,8 @@ from agente_navegador.actions.gemini_responder import (
     classify_follow_up_intent,
     analyze_message_intent_and_keyword,
     generate_friendly_no_products_response,
-    generate_general_gemini_response
+    generate_general_gemini_response,
+    generate_clarifying_question
 )
 
 log = get_logger(__name__)
@@ -538,6 +539,19 @@ async def handle_whatsapp_message_flow(page, user_message: str, history: list[di
     log.info(f"Analise de intencao para '{chat_title}': {intent_data}")
     
     if intent_data["intent"] == "YES" and intent_data["keyword"]:
+        # Conta quantas respostas o Agente já enviou neste chat para qualificar o lead
+        agent_msg_count = sum(1 for m in history if m.get("sender") == "Agente") if history else 0
+        
+        # Verifica se o cliente já demonstrou pressa em ver os links ou preços
+        impatient_words = ["link", "preço", "preco", "valor", "mostra", "quero ver", "quais tem", "site", "comprar", "pesquisa"]
+        customer_impatient = any(w in user_message.lower() for w in impatient_words)
+        
+        if agent_msg_count < 3 and not customer_impatient:
+            log.info(f"Conversa recente ({agent_msg_count}/3 perguntas feitas pelo agente). Solicitando detalhes adicionais...")
+            reply_text = await generate_clarifying_question(user_message, history, intent_data["keyword"])
+            await confirm_and_send_text(page, reply_text, require_confirmation, chat_title)
+            return
+            
         from agente_navegador.actions.balao_search import search_balao_products
         
         keyword = intent_data["keyword"]

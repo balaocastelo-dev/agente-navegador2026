@@ -354,3 +354,46 @@ async def generate_general_gemini_response(user_message: str, history: list[dict
         return res.text.strip()
     except Exception:
         return _get_static_fallback(user_message, history)
+
+
+async def generate_clarifying_question(user_message: str, history: list[dict] | None = None, keyword: str = "") -> str:
+    """Gera uma pergunta cordial e especifica para qualificar o lead antes da busca."""
+    if not config.gemini_api_key:
+        return _get_static_fallback(user_message, history)
+        
+    try:
+        model = genai.GenerativeModel(
+            model_name="gemini-2.5-flash",
+            system_instruction=SYSTEM_INSTRUCTION
+        )
+        history_context = ""
+        if history:
+            history_context = "Histórico recente da conversa:\n"
+            for msg in history:
+                history_context += f"{msg['sender']}: {msg['text']}\n"
+            history_context += "\n"
+            
+        greeting = get_time_greeting()
+        has_agent_replied = any(msg["sender"] == "Agente" for msg in history) if history else False
+        
+        if has_agent_replied:
+            prompt = (
+                f"O cliente está interessado em '{keyword}'. Faça uma nova pergunta muito cordial para entender melhor a necessidade "
+                f"(ex: preferência de marca, capacidade, uso, ou orçamento) para podermos fazer a melhor busca no site depois. "
+                f"ATENÇÃO: NUNCA use cumprimentos (como olá, bom dia/noite) pois a conversa já está em andamento. "
+                f"Seja breve, empático, muito curto e faça apenas uma pergunta de esclarecimento por vez.\n\n"
+                f"{history_context}"
+                f"Última mensagem: {user_message}"
+            )
+        else:
+            prompt = (
+                f"O cliente está interessado em '{keyword}'. Mostre entusiasmo e interesse real. "
+                f"Use a saudação inicial '{greeting}' de forma natural e faça uma primeira pergunta para entender a necessidade (ex: objetivo de uso do item).\n\n"
+                f"{history_context}"
+                f"Última mensagem: {user_message}"
+            )
+            
+        res = await model.generate_content_async(prompt)
+        return res.text.strip()
+    except Exception:
+        return _get_static_fallback(user_message, history)

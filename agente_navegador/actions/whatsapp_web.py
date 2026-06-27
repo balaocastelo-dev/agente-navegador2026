@@ -36,8 +36,8 @@ UNREAD_CHAT_XPATH = (
 )
 
 # Seletor para a ultima mensagem recebida (incoming) no chat aberto
-LAST_INCOMING_MESSAGE = "div.message-in"
-MESSAGE_TEXT_SELECTOR = ".selectable-text, span.selectable-text"
+LAST_INCOMING_MESSAGE = "div.message-in, div.x1cy8zhl"
+MESSAGE_TEXT_SELECTOR = ".selectable-text, span.selectable-text, span[data-testid='selectable-text']"
 
 # Estado global simples para controle via API
 _selected_chat_name: str | None = None
@@ -278,6 +278,36 @@ async def consult_supabase_source(page) -> None:
         log.error(f"Erro ao abrir Supabase: {e}")
 
 
+async def get_message_id(msg_locator) -> str | None:
+    """Extrai o atributo data-id do elemento ou de seus ancestrais/descendentes."""
+    try:
+        # 1. Tenta obter diretamente do elemento
+        msg_id = await msg_locator.get_attribute("data-id")
+        if msg_id:
+            return msg_id
+            
+        # 2. Tenta obter de algum descendente
+        descendant = msg_locator.locator("div[data-id], [data-id]")
+        if await descendant.count() > 0:
+            return await descendant.first.get_attribute("data-id")
+            
+        # 3. Tenta buscar nos ancestrais usando JavaScript na pagina
+        msg_id = await msg_locator.evaluate("""el => {
+            let current = el;
+            while (current) {
+                if (current.hasAttribute('data-id')) {
+                    return current.getAttribute('data-id');
+                }
+                current = current.parentElement;
+            }
+            return null;
+        }""")
+        return msg_id
+    except Exception as e:
+        log.debug(f"Nao foi possivel extrair data-id da mensagem: {e}")
+        return None
+
+
 async def run_auto_reply_loop(
     message_template: str,
     require_confirmation: bool = True,
@@ -342,7 +372,7 @@ async def run_auto_reply_loop(
                 last_msg = incoming_msgs.last
                 
                 # Obtém o data-id do Playwright como identificador único da mensagem
-                msg_id = await last_msg.get_attribute("data-id")
+                msg_id = await get_message_id(last_msg)
                 
                 # Extrai o texto da mensagem do cliente
                 last_msg_text = ""

@@ -10,5 +10,5 @@ steps:
     save_as: total_respondidas
     extra:
       require_confirmation: false # Mantenha false para responder automaticamente sem bloquear o terminal do servidor
-      max_cycles: 100
+      max_cycles: 0
       cycle_delay_sec: 5

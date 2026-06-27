@@ -143,27 +143,30 @@ async def generate_smart_response(user_message: str, history: list[dict] | None 
 
     except Exception as e:
         log.error(f"Erro ao gerar resposta com Gemini: {e}")
-        return _get_static_fallback(user_message)
+        return _get_static_fallback(user_message, history)
 
 
-def _get_static_fallback(user_message: str) -> str:
+def _get_static_fallback(user_message: str, history: list[dict] | None = None) -> str:
     """Gera uma resposta estatica amigavel se a IA falhar ou nao estiver configurada."""
     msg_lower = user_message.lower()
-    greet = get_time_greeting().capitalize()
+    
+    # Verifica se o agente já respondeu no histórico para evitar saudações repetidas
+    has_agent_replied = any(msg["sender"] == "Agente" for msg in history) if history else False
+    greet_prefix = "" if has_agent_replied else f"{get_time_greeting().capitalize()}! "
     
     if "endereco" in msg_lower or "onde fica" in msg_lower or "localizacao" in msg_lower:
         return (
-            f"{greet}! Fica no Cambui: Av. Anchieta, 789 – Campinas/SP. "
+            f"{greet_prefix}Fica no Cambui: Av. Anchieta, 789 – Campinas/SP. "
             "Nosso site e www.balao.info. Como posso te ajudar hoje?"
         )
     if "contato" in msg_lower or "telefone" in msg_lower or "whatsapp" in msg_lower:
         return (
-            f"{greet}! Voce pode nos contatar no telefone (19) 3255-1661 ou WhatsApp (19) 98751-0267. "
+            f"{greet_prefix}Voce pode nos contatar no telefone (19) 3255-1661 ou WhatsApp (19) 98751-0267. "
             "Acesse tambem nosso site www.balao.info!"
         )
         
     return (
-        f"{greet}! Agradecemos seu contato com o Balao da Informatica Castelo. "
+        f"{greet_prefix}Agradecemos seu contato com o Balao da Informatica Castelo. "
         "Recebemos sua mensagem e em breve um de nossos especialistas ira te responder!"
     )
 
@@ -276,7 +279,7 @@ async def analyze_message_intent_and_keyword(user_message: str, history: list[di
 async def generate_friendly_no_products_response(user_message: str, keyword: str, history: list[dict] | None = None) -> str:
     """Gera uma resposta amigavel quando nao ha produtos em estoque."""
     if not config.gemini_api_key:
-        return _get_static_fallback(user_message)
+        return _get_static_fallback(user_message, history)
         
     try:
         model = genai.GenerativeModel(
@@ -312,13 +315,13 @@ async def generate_friendly_no_products_response(user_message: str, keyword: str
         res = await model.generate_content_async(prompt)
         return res.text.strip()
     except Exception:
-        return _get_static_fallback(user_message)
+        return _get_static_fallback(user_message, history)
 
 
 async def generate_general_gemini_response(user_message: str, history: list[dict] | None = None) -> str:
     """Gera uma resposta geral usando o Gemini para tirar duvidas gerais."""
     if not config.gemini_api_key:
-        return _get_static_fallback(user_message)
+        return _get_static_fallback(user_message, history)
         
     try:
         model = genai.GenerativeModel(
@@ -350,4 +353,4 @@ async def generate_general_gemini_response(user_message: str, history: list[dict
         res = await model.generate_content_async(prompt)
         return res.text.strip()
     except Exception:
-        return _get_static_fallback(user_message)
+        return _get_static_fallback(user_message, history)

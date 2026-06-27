@@ -578,9 +578,15 @@ async def run_auto_reply_loop(
     active_chat_title: str | None = None
     last_processed_msg_id: str | None = None
     
-    log_agent(f"Iniciando loop de auto-resposta inteligente (Max ciclos: {max_cycles}, Delay: {cycle_delay_sec}s)")
+    cycle_limit_desc = "Infinito" if max_cycles <= 0 else str(max_cycles)
+    log_agent(f"Iniciando loop de auto-resposta inteligente (Max ciclos: {cycle_limit_desc}, Delay: {cycle_delay_sec}s)")
     
-    for cycle in range(max_cycles):
+    cycle = 0
+    while True:
+        cycle += 1
+        if max_cycles > 0 and cycle > max_cycles:
+            break
+            
         # Se o operador selecionou um contato no painel, foca nele
         if _selected_chat_name:
             chat_name = _selected_chat_name
@@ -591,7 +597,7 @@ async def run_auto_reply_loop(
             active_chat_title = chat_name
             last_processed_msg_id = None # Força a leitura/resposta no novo chat
             
-        log.info(f"Ciclo {cycle + 1}/{max_cycles} - Verificando novas mensagens...")
+        log.info(f"Ciclo {cycle}/{cycle_limit_desc} - Verificando novas mensagens...")
         
         # 1. Encontra novos chats não lidos no menu lateral
         unread_chats = page.locator(f"xpath={UNREAD_CHAT_XPATH}")
